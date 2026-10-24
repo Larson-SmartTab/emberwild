@@ -280,6 +280,99 @@ public final class Monsters {
                 .cr(0, 25).immune("fire", "poison", "psychic").condImmune("charmed", "frightened", "poisoned", "paralyzed", "prone", "incapacitated")
                 .attack("None", 0, "0", "fire").look("#ff9800", "🜂").blurb("A black-iron brazier feeding the Tyrant's flame. Smash it!");
 
+
+        // -------------------------------------------------------------- general bestiary (for any campaign)
+        m("kobold", "Kobold Warrior").type("humanoid").role("skirmisher").ac(12).hp(7, "3d6-3").stats(7, 15, 9, 8, 7, 8)
+                .cr(0.125, 25).attack("Dagger", 4, "1d4+2", "piercing").attack(new Attack("Sling", 4, "1d4+2", "bludgeoning").ranged(30, 120))
+                .trait("pack_tactics").look("#a0522d", "🦎").blurb("Small, scaly, and absolutely convinced the dragon loves them.");
+        m("kobold_slinger", "Kobold Slinger").type("humanoid").role("ranged").ac(12).hp(7).stats(7, 15, 9, 8, 7, 8)
+                .cr(0.125, 25).attack("Dagger", 4, "1d4+2", "piercing").attack(new Attack("Sling", 4, "1d4+2", "bludgeoning").ranged(30, 120))
+                .trait("pack_tactics", "avoid_melee").look("#b5651d", "🎯").blurb("Has a pouch of sharp stones and a grudge.");
+        m("kobold_shaman", "Kobold Dragonshield Shaman").type("humanoid").role("caster").ac(13).hp(18).stats(8, 15, 12, 10, 12, 14)
+                .cr(1, 200).multi(2).attack("Spear", 4, "1d6+2", "piercing").attack(new Attack("Dragon's Spit", 4, "2d6", "acid").ranged(60, 60).spell())
+                .special(special("shamanic_mend", "Scale-Mend Chant").shape("heal", 0, 0).dmg("2d6+2", "").uses(2).bonus())
+                .look("#6b8e23", "🪬").blurb("Wears a shed dragon scale as a shield and talks to it.");
+        m("giant_rat", "Giant Rat").type("beast").role("skirmisher").ac(13).hp(7).speed(30).stats(7, 16, 11, 2, 10, 4)
+                .cr(0.125, 25).attack("Bite", 5, "1d4+3", "piercing").trait("pack_tactics").look("#5d4e46", "🐀").blurb("The size of a dog, the manners of a rat.");
+        m("giant_spider", "Giant Spider").type("beast").role("melee").size(2).ac(14).hp(26, "4d10+4").speed(30).stats(14, 16, 12, 2, 11, 4)
+                .cr(1, 200).attack(new Attack("Bite", 5, "1d8+3", "piercing").plus("2d6", "poison"))
+                .attack(new Attack("Web", 5, "0", "bludgeoning").ranged(30, 60).rider("restrained", Ability.DEX, 13))
+                .look("#2e2e3a", "🕷").blurb("Eight legs, eight eyes, zero mercy.");
+        m("ghoul", "Ghoul").type("undead").role("melee").ac(12).hp(22, "5d8").speed(30).stats(13, 15, 10, 7, 10, 6)
+                .cr(1, 200).multi(2).immune("poison").condImmune("charmed", "poisoned")
+                .attack(new Attack("Claw", 4, "1d4+2", "slashing").rider("paralyzed", Ability.CON, 10))
+                .attack(new Attack("Bite", 4, "1d6+2", "piercing").plus("1d6", "necrotic"))
+                .look("#6b7a5a", "🧟").blurb("Hungry in a way that has nothing to do with food.");
+        m("zombie", "Zombie").type("undead").role("brute").ac(8).hp(15, "2d8+6").speed(20).stats(13, 6, 16, 3, 6, 5)
+                .cr(0.25, 50).immune("poison").condImmune("poisoned").attack("Slam", 3, "1d8+1", "bludgeoning").trait("undead_fortitude")
+                .look("#556b2f", "🧟").blurb("Slow. Patient. Very, very persistent.");
+        m("shadow", "Shadow").type("undead").role("skirmisher").ac(12).hp(16).speed(40).stats(6, 14, 13, 6, 10, 8)
+                .cr(0.5, 100).resist("acid", "cold", "fire", "lightning", "thunder", "bludgeoning", "piercing", "slashing").immune("necrotic", "poison").vulnerable("radiant")
+                .attack(new Attack("Draining Swipe", 4, "2d6+2", "necrotic")).look("#1b1b2a", "👤").blurb("A darkness that remembers being a person.");
+        m("hobgoblin", "Hobgoblin Soldier").type("humanoid").role("melee").ac(18).hp(11, "2d8+2").stats(13, 12, 12, 10, 10, 9)
+                .cr(0.5, 100).attack(new Attack("Longsword", 3, "2d10+1", "slashing")).attack(new Attack("Longbow", 3, "1d8+1", "piercing").ranged(150, 600))
+                .trait("pack_tactics").look("#8b2e2e", "⚔").blurb("Drilled, disciplined, dangerous in formation.");
+        m("bugbear", "Bugbear Brute").type("humanoid").role("brute").ac(14).hp(33, "6d8+6").stats(15, 14, 13, 8, 11, 9)
+                .cr(1, 200).attack(new Attack("Light Hammer", 4, "3d4+2", "bludgeoning").reach(10)).attack(new Attack("Javelin", 4, "1d6+2", "piercing").ranged(30, 120))
+                .look("#8d6e3f", "🔨").blurb("Long arms, quiet feet, terrible manners.");
+        m("gnoll", "Gnoll Raider").type("humanoid").role("melee").ac(15).hp(27, "6d8").stats(14, 12, 11, 6, 10, 7)
+                .cr(0.5, 100).attack(new Attack("Rend", 4, "1d6+2", "piercing")).attack(new Attack("Longbow", 3, "1d8+1", "piercing").ranged(150, 600))
+                .look("#a67c52", "🐗").blurb("Cackling, ravenous, never alone.");
+        m("ogre", "Ogre").type("giant").role("brute").size(2).ac(11).hp(68, "8d10+24").speed(40).stats(19, 8, 16, 5, 7, 7)
+                .cr(2, 450).attack(new Attack("Greatclub", 6, "2d8+4", "bludgeoning")).attack(new Attack("Javelin", 6, "2d6+4", "piercing").ranged(30, 120))
+                .look("#7d8f4e", "👹").blurb("Big enough to block a door, dim enough to try eating it.");
+        m("owlbear", "Owlbear").type("monstrosity").role("brute").size(2).ac(13).hp(59, "7d10+21").speed(40).stats(20, 12, 17, 3, 12, 7)
+                .cr(3, 700).multi(2).attack(new Attack("Rend", 7, "2d8+5", "slashing")).look("#7a5c3a", "🦉").blurb("Half owl, half bear, all bad decisions.");
+        m("sahuagin", "Sahuagin Raider").type("fiend").role("melee").ac(12).hp(22, "4d8+4").speed(30).stats(13, 11, 12, 12, 13, 9)
+                .cr(0.5, 100).multi(2).attack(new Attack("Claw", 3, "1d4+1", "slashing")).attack(new Attack("Spear", 3, "1d6+1", "piercing").ranged(20, 60))
+                .trait("pack_tactics").look("#2e7d6b", "🦈").blurb("Sea-devils with shark teeth and a blood frenzy.");
+        m("giant_crab", "Giant Crab").type("beast").role("melee").ac(15).hp(13, "3d8").speed(30).stats(13, 15, 11, 1, 9, 3)
+                .cr(0.125, 25).attack(new Attack("Claw", 3, "1d6+1", "bludgeoning").rider("grappled", Ability.STR, 11)).look("#c0392b", "🦀").blurb("Clack clack. CLACK.");
+        m("merrow", "Merrow").type("monstrosity").role("brute").size(2).ac(13).hp(45, "6d10+12").speed(10).stats(18, 10, 15, 8, 10, 9)
+                .cr(2, 450).multi(2).attack(new Attack("Bite", 6, "1d8+4", "piercing")).attack(new Attack("Harpoon", 6, "2d6+4", "piercing").reach(10).ranged(20, 60))
+                .look("#3a6b5e", "🐟").blurb("A sea ogre with a harpoon and a hungry grin.");
+        m("ice_mephit", "Ice Mephit").type("elemental").role("skirmisher").ac(11).hp(21, "6d6").speed(30).fly(30).stats(7, 13, 10, 9, 11, 12)
+                .cr(0.5, 100).immune("cold", "poison").vulnerable("bludgeoning", "fire").condImmune("poisoned")
+                .attack(new Attack("Claw", 3, "1d4+1", "slashing").plus("1d4", "cold"))
+                .special(special("frost_breath", "Frost Breath").shape("cone", 15, 0).dmg("2d4", "cold").dc(10, Ability.DEX).recharge(6))
+                .trait("death_burst").look("#a8d8f0", "❄").blurb("A giggling shard of winter.");
+        m("yeti", "Yeti").type("monstrosity").role("brute").size(2).ac(12).hp(51, "6d10+18").speed(40).stats(18, 13, 16, 8, 12, 7)
+                .cr(3, 700).multi(2).immune("cold").vulnerable("fire")
+                .attack(new Attack("Claw", 6, "1d6+4", "slashing").plus("1d6", "cold"))
+                .special(special("chilling_gaze", "Chilling Roar").shape("sphere", 15, 0).dmg("3d6", "cold").dc(13, Ability.CON).recharge(6))
+                .look("#e8eef2", "🦍").blurb("White fur, blue eyes, and a roar that freezes blood.");
+        m("winter_wolf", "Winter Wolf").type("monstrosity").role("skirmisher").size(2).ac(13).hp(40, "6d10+6").speed(50).stats(18, 13, 14, 7, 12, 8)
+                .cr(3, 700).immune("cold").attack(new Attack("Bite", 6, "2d6+4", "piercing").rider("prone", Ability.STR, 14))
+                .special(special("cold_breath", "Cold Breath").shape("cone", 15, 0).dmg("4d8", "cold").dc(12, Ability.DEX).recharge(5))
+                .trait("pack_tactics").look("#cfd8dc", "🐺").blurb("A wolf of ice and malice that speaks in a whisper of frost.");
+        m("gargoyle", "Gargoyle").type("elemental").role("skirmisher").ac(15).hp(37, "5d8+15").speed(30).fly(60).stats(15, 11, 16, 6, 11, 7)
+                .cr(2, 450).multi(2).resist("bludgeoning", "piercing", "slashing").immune("poison").condImmune("poisoned", "charmed", "frightened")
+                .attack(new Attack("Claw", 4, "1d6+2", "slashing")).look("#6f6f78", "🗿").blurb("It was a statue. It was. It isn't now.");
+        m("minotaur_skeleton", "Minotaur Skeleton").type("undead").role("brute").size(2).ac(12).hp(45, "6d10+12").speed(40).stats(18, 11, 15, 6, 8, 5)
+                .cr(2, 450).vulnerable("bludgeoning").immune("poison").condImmune("poisoned", "charmed", "frightened")
+                .attack(new Attack("Gore", 6, "2d8+4", "piercing").rider("prone", Ability.STR, 14)).look("#e0d6c3", "🐂").blurb("A labyrinth's guardian, still on patrol.");
+        m("flameskull", "Flameskull").type("undead").role("caster").ac(13).hp(40).speed(0).fly(40).stats(1, 17, 14, 16, 10, 11)
+                .cr(4, 1100).multi(2).resist("lightning", "necrotic", "piercing").immune("cold", "fire", "poison").condImmune("charmed", "frightened", "paralyzed", "poisoned", "prone")
+                .attack(new Attack("Fire Ray", 5, "2d6", "fire").ranged(30, 30).spell())
+                .special(special("skull_fireball", "Fireball").shape("sphere", 20, 120).dmg("6d6", "fire").dc(13, Ability.DEX).uses(1))
+                .trait("avoid_melee").look("#ff7043", "💀").blurb("A cackling skull wreathed in green fire.");
+        // dragons — wyrmlings for mid-level parties, a young dragon for a climactic boss
+        m("white_wyrmling", "White Dragon Wyrmling").type("dragon").role("melee").ac(16).hp(32, "5d8+10").speed(30).fly(60).stats(14, 10, 14, 5, 10, 11)
+                .cr(2, 450).immune("cold").attack(new Attack("Rend", 4, "1d8+2", "piercing").plus("1d4", "cold"))
+                .special(special("cold_breath", "Cold Breath").shape("cone", 15, 0).dmg("5d8", "cold").dc(12, Ability.CON).recharge(5))
+                .look("#e3f2fd", "🐉").blurb("Small, cold, and bad-tempered.");
+        m("red_wyrmling", "Red Dragon Wyrmling").type("dragon").role("melee").ac(17).hp(75, "10d8+30").speed(30).fly(60).stats(19, 10, 17, 12, 11, 15)
+                .cr(4, 1100).immune("fire").multi(2).attack(new Attack("Rend", 6, "1d10+4", "slashing").plus("1d6", "fire"))
+                .special(special("fire_breath", "Fire Breath").shape("cone", 15, 0).dmg("7d6", "fire").dc(13, Ability.DEX).recharge(5))
+                .look("#e53935", "🐉").blurb("Young, vain, and already sitting on a pile of gold.");
+        m("young_black_dragon", "Young Black Dragon").type("dragon").role("boss").size(2).ac(17).hp(110, "13d10+39").speed(40).fly(80)
+                .stats(19, 14, 17, 12, 11, 15).cr(5, 1800).saves("dex", "con", "wis", "cha").immune("acid").multi(3)
+                .attack(new Attack("Bite", 7, "2d8+4", "piercing").plus("1d8", "acid").reach(10))
+                .attack(new Attack("Claw", 7, "2d6+4", "slashing")).attack(new Attack("Claw", 7, "2d6+4", "slashing"))
+                .special(special("acid_breath", "Acid Breath").shape("line", 60, 0).dmg("9d8", "acid").dc(14, Ability.DEX).recharge(5))
+                .special(special("tail_sweep", "Tail Sweep").shape("sphere", 10, 0).dmg("2d6+4", "bludgeoning").dc(15, Ability.DEX).rider("prone"))
+                .trait("legendary_resistance").legendary(2, "special:tail_sweep", "attack:Claw", "move")
+                .look("#2e3b2e", "🐉").blurb("A young black dragon: cruel, patient, and soaked in acid.");
         // -------------------------------------------------------------- the boss
         m("vharkas", "Vharkas, the Cinder Tyrant").type("dragon").role("boss").size(2).ac(15).hp(76, "9d10+27").speed(40).fly(60)
                 .stats(19, 12, 17, 14, 13, 16).cr(4, 1100).saves("dex", "con", "wis", "cha")
@@ -289,8 +382,8 @@ public final class Monsters {
                 .attack(new Attack("Claw", 6, "1d6+4", "slashing"))
                 .special(sp("cinder_breath", "Cinder Breath").shape("cone", 30, 0).dmg("4d6", "fire").dc(13, Ability.DEX).recharge(6))
                 .special(sp("wing_gust", "Wing Gust").shape("sphere", 10, 0).dmg("2d4", "bludgeoning").dc(13, Ability.STR).rider("prone"))
-                .trait("flame_aura", "legendary_resistance")
-                .legendary(2, "attack:Claw", "special:wing_gust", "move")
+                .trait("flame_aura", "fed_by_objects", "legendary_resistance")
+                .legendary(2, "special:wing_gust", "attack:Claw", "move")
                 .look("#ff5722", "🐉").blurb("A drake of living slag, sealed beneath Thornreach for three hundred years. It remembers being worshipped.");
     }
 

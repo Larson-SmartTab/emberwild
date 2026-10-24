@@ -28,9 +28,9 @@ public final class Classes {
         // spellcasting
         public Ability spellAbility;
         public String spellList;
-        public int[] cantrips = {0, 0, 0};
-        public int[] prepared = {0, 0, 0};
-        public int[][] slots = {{}, {}, {}};
+        public int[] cantrips = {0, 0, 0, 0, 0};
+        public int[] prepared = {0, 0, 0, 0, 0};
+        public int[][] slots = {{}, {}, {}, {}, {}};
         public List<String> alwaysPrepared = new ArrayList<>(); // by level 1-3 via "L:spell"
         public List<String> defaultCantrips = new ArrayList<>(), defaultSpells = new ArrayList<>();
         public String color = "#888";
@@ -40,11 +40,11 @@ public final class Classes {
 
         public boolean caster() { return spellAbility != null; }
 
-        public int[] slotsAt(int level) { return slots[Math.max(0, Math.min(2, level - 1))]; }
+        public int[] slotsAt(int level) { return slots[Math.max(0, Math.min(slots.length - 1, level - 1))]; }
 
-        public int cantripsAt(int level) { return cantrips[Math.max(0, Math.min(2, level - 1))]; }
+        public int cantripsAt(int level) { return cantrips[Math.max(0, Math.min(cantrips.length - 1, level - 1))]; }
 
-        public int preparedAt(int level) { return prepared[Math.max(0, Math.min(2, level - 1))]; }
+        public int preparedAt(int level) { return prepared[Math.max(0, Math.min(prepared.length - 1, level - 1))]; }
 
         public int maxSpellLevel(int level) { return slotsAt(level).length; }
 
@@ -108,8 +108,8 @@ public final class Classes {
         bd.skillChoices = sk(Skill.values()); bd.skillCount = 3;
         bd.armor = "light"; bd.armorBase = 11; bd.weapons = List.of("rapier", "dagger");
         bd.subclass = "College of Lore"; bd.color = "#8e44ad"; bd.glyph = "🎻";
-        bd.spellAbility = Ability.CHA; bd.spellList = "bard"; bd.cantrips = new int[]{2, 2, 2}; bd.prepared = new int[]{4, 5, 6};
-        bd.slots = new int[][]{{2}, {3}, {4, 2}};
+        bd.spellAbility = Ability.CHA; bd.spellList = "bard"; bd.cantrips = new int[]{2, 2, 2, 3, 3}; bd.prepared = new int[]{4, 5, 6, 7, 9};
+        bd.slots = new int[][]{{2}, {3}, {4, 2}, {4, 3}, {4, 3, 2}};
         bd.defaultCantrips = List.of("vicious_mockery", "starry_wisp");
         bd.defaultSpells = List.of("healing_word", "dissonant_whispers", "charm_person", "faerie_fire", "shatter", "heroism");
         bd.features.addAll(List.of(
@@ -125,8 +125,8 @@ public final class Classes {
         cl.skillChoices = sk(Skill.HISTORY, Skill.INSIGHT, Skill.MEDICINE, Skill.PERSUASION, Skill.RELIGION);
         cl.armor = "medium"; cl.armorBase = 13; cl.dexCap = 2; cl.shield = true; cl.weapons = List.of("mace");
         cl.subclass = "Life Domain"; cl.color = "#f1c40f"; cl.glyph = "☀";
-        cl.spellAbility = Ability.WIS; cl.spellList = "cleric"; cl.cantrips = new int[]{3, 3, 3}; cl.prepared = new int[]{4, 5, 6};
-        cl.slots = new int[][]{{2}, {3}, {4, 2}};
+        cl.spellAbility = Ability.WIS; cl.spellList = "cleric"; cl.cantrips = new int[]{3, 3, 3, 4, 4}; cl.prepared = new int[]{4, 5, 6, 7, 9};
+        cl.slots = new int[][]{{2}, {3}, {4, 2}, {4, 3}, {4, 3, 2}};
         cl.alwaysPrepared = List.of("3:aid", "3:bless", "3:cure_wounds", "3:lesser_restoration");
         cl.defaultCantrips = List.of("sacred_flame", "toll_the_dead", "guidance");
         cl.defaultSpells = List.of("healing_word", "guiding_bolt", "bless", "shield_of_faith", "spiritual_weapon", "hold_person");
@@ -156,8 +156,8 @@ public final class Classes {
         p.skillChoices = sk(Skill.ATHLETICS, Skill.INSIGHT, Skill.INTIMIDATION, Skill.MEDICINE, Skill.PERSUASION, Skill.RELIGION);
         p.armor = "heavy"; p.armorBase = 16; p.dexCap = 0; p.shield = true; p.weapons = List.of("longsword", "javelin");
         p.subclass = "Oath of Devotion"; p.color = "#3498db"; p.glyph = "⚜";
-        p.spellAbility = Ability.CHA; p.spellList = "paladin"; p.cantrips = new int[]{0, 0, 0}; p.prepared = new int[]{2, 3, 4};
-        p.slots = new int[][]{{2}, {2}, {3}};
+        p.spellAbility = Ability.CHA; p.spellList = "paladin"; p.prepared = new int[]{2, 3, 4, 5, 6};
+        p.slots = new int[][]{{2}, {2}, {3}, {3}, {4, 2}};
         p.alwaysPrepared = List.of("1:divine_smite", "3:shield_of_faith");
         p.defaultSpells = List.of("bless", "cure_wounds", "heroism");
         p.features.addAll(List.of(
@@ -174,8 +174,8 @@ public final class Classes {
         r.skillChoices = sk(Skill.ANIMAL_HANDLING, Skill.ATHLETICS, Skill.INSIGHT, Skill.INVESTIGATION, Skill.NATURE, Skill.PERCEPTION, Skill.STEALTH, Skill.SURVIVAL); r.skillCount = 3;
         r.armor = "light"; r.armorBase = 12; r.weapons = List.of("longbow", "shortsword");
         r.subclass = "Hunter"; r.color = "#27ae60"; r.glyph = "🏹";
-        r.spellAbility = Ability.WIS; r.spellList = "ranger"; r.prepared = new int[]{2, 3, 4};
-        r.slots = new int[][]{{2}, {2}, {3}};
+        r.spellAbility = Ability.WIS; r.spellList = "ranger"; r.prepared = new int[]{2, 3, 4, 5, 6};
+        r.slots = new int[][]{{2}, {2}, {3}, {3}, {4, 2}};
         r.alwaysPrepared = List.of("1:hunters_mark");
         r.defaultSpells = List.of("cure_wounds", "lesser_restoration");
         r.features.addAll(List.of(
@@ -205,16 +205,28 @@ public final class Classes {
         wz.skillChoices = sk(Skill.ARCANA, Skill.HISTORY, Skill.INSIGHT, Skill.INVESTIGATION, Skill.MEDICINE, Skill.NATURE, Skill.RELIGION);
         wz.armor = "none"; wz.weapons = List.of("quarterstaff", "dagger");
         wz.subclass = "Evoker"; wz.color = "#e67e22"; wz.glyph = "🔥";
-        wz.spellAbility = Ability.INT; wz.spellList = "wizard"; wz.cantrips = new int[]{3, 3, 3}; wz.prepared = new int[]{4, 5, 6};
-        wz.slots = new int[][]{{2}, {3}, {4, 2}};
+        wz.spellAbility = Ability.INT; wz.spellList = "wizard"; wz.cantrips = new int[]{3, 3, 3, 4, 4}; wz.prepared = new int[]{4, 5, 6, 7, 9};
+        wz.slots = new int[][]{{2}, {3}, {4, 2}, {4, 3}, {4, 3, 2}};
         wz.defaultCantrips = List.of("fire_bolt", "ray_of_frost", "shocking_grasp");
         wz.defaultSpells = List.of("shield", "chromatic_orb", "burning_hands", "charm_person", "mage_armor", "magic_missile");
+        // ---- levels 4-5 (2024): Ability Score Improvement at 4; signature level-5 power spikes
+        Feature asi = new Feature(4, "asi", "Ability Score Improvement", "+2 to your primary ability (to a maximum of 20).");
+        b.features.addAll(List.of(asi, new Feature(5, "extra_attack", "Extra Attack", "Attack twice when you take the Attack action."), new Feature(5, "fast_movement", "Fast Movement", "+10 ft Speed while not wearing heavy armor.")));
+        bd.features.addAll(List.of(asi, new Feature(5, "font_of_inspiration", "Font of Inspiration", "Bardic Inspiration becomes a d8 and returns on a Short Rest.")));
+        cl.features.addAll(List.of(asi, new Feature(5, "sear_undead", "Sear Undead", "Divine Spark deals an extra 2d8 radiant to undead and fiends.")));
+        f.features.addAll(List.of(asi, new Feature(5, "extra_attack", "Extra Attack", "Attack twice when you take the Attack action."), new Feature(5, "tactical_shift", "Tactical Shift", "When you use Second Wind, move up to half your Speed without provoking Opportunity Attacks.")));
+        p.features.addAll(List.of(asi, new Feature(5, "extra_attack", "Extra Attack", "Attack twice when you take the Attack action.")));
+        r.features.addAll(List.of(asi, new Feature(5, "extra_attack", "Extra Attack", "Attack twice when you take the Attack action.")));
+        ro.features.addAll(List.of(asi, new Feature(5, "uncanny_dodge", "Uncanny Dodge", "Reaction: halve the damage of an attack that hits you."), new Feature(5, "cunning_strike", "Cunning Strike", "Sneak Attack reaches 3d6.")));
+
         wz.features.addAll(List.of(
                 new Feature(1, "spellcasting", "Spellcasting", "Cast wizard spells from your spellbook using Intelligence. Change prepared spells after a Long Rest."),
                 new Feature(1, "ritual_adept", "Ritual Adept", "Cast any Ritual spell in your spellbook without preparing it."),
                 new Feature(1, "arcane_recovery", "Arcane Recovery", "Once per day on a Short Rest, recover expended spell slots (combined level up to half your Wizard level, rounded up)."),
                 new Feature(2, "scholar", "Scholar", "Expertise in Arcana."),
                 new Feature(3, "evocation_savant", "Evocation Savant (Evoker)", "Add two Evocation spells to your spellbook for free."),
-                new Feature(3, "potent_cantrip", "Potent Cantrip", "When a creature succeeds on a save against your damaging cantrip, or your cantrip attack misses, it still takes half damage.")));
+                new Feature(3, "potent_cantrip", "Potent Cantrip", "When a creature succeeds on a save against your damaging cantrip, or your cantrip attack misses, it still takes half damage."),
+                new Feature(4, "asi", "Ability Score Improvement", "+2 to your primary ability (to a maximum of 20)."),
+                new Feature(5, "third_level", "3rd-Level Spells", "Fireball and Lightning Bolt join your spellbook. Cantrips grow stronger.")));
     }
 }

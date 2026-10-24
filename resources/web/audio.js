@@ -20,6 +20,11 @@
     cindrel: { scale: [0, 2, 3, 7, 8, 11], root: 50, tempo: 0.2, bass: true, pluck: .6, drum: .7, noise: 'fire', bright: .9 },
     boss:    { scale: [0, 1, 3, 6, 7, 8], root: 40, tempo: 0.15, bass: true, pluck: .6, drum: 1.3, noise: 'fire', bright: .7 },
     hope:    { scale: [0, 2, 4, 7, 9, 11], root: 60, tempo: 0.4, bass: true, pluck: .45, drum: 0, noise: '', bright: 1.1 },
+    sea:     { scale: [0, 2, 4, 5, 7, 9], root: 52, tempo: 0.5, bass: true, pluck: .4, drum: 0, noise: 'wind', bright: .8 },
+    shanty:  { scale: [0, 2, 3, 5, 7, 10], root: 55, tempo: 0.2, bass: true, pluck: .8, drum: .5, noise: 'murmur', bright: 1 },
+    snow:    { scale: [0, 2, 3, 7, 9], root: 62, tempo: 0.6, bass: false, pluck: .35, drum: 0, noise: 'wind', bright: 1.3 },
+    dungeon: { scale: [0, 1, 3, 5, 6, 8], root: 43, tempo: 0.6, bass: true, pluck: .25, drum: .15, noise: '', bright: .5 },
+    dragon:  { scale: [0, 1, 4, 5, 7, 8], root: 38, tempo: 0.14, bass: true, pluck: .7, drum: 1.4, noise: 'fire', bright: .8 },
     triumph: { scale: [0, 4, 7, 9, 12], root: 60, tempo: 0.22, bass: true, pluck: .7, drum: .5, noise: 'murmur', bright: 1.2 },
   };
 

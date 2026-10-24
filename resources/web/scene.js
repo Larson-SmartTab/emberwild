@@ -310,6 +310,96 @@
     };
   };
 
+
+  P.coast = (c, w, h, r, time) => {
+    sky(c, w, h, time, r);
+    const sea = c.createLinearGradient(0, h * .5, 0, h); sea.addColorStop(0, time === 'night' ? '#1b2a44' : '#3f7fa8'); sea.addColorStop(1, time === 'night' ? '#0b1322' : '#1d4566');
+    c.fillStyle = sea; c.fillRect(0, h * .5, w, h * .5);
+    // cliffs and lighthouse
+    c.fillStyle = '#2b2a2e'; c.beginPath(); c.moveTo(w * .7, h); c.lineTo(w * .72, h * .45); c.lineTo(w * .8, h * .4); c.lineTo(w * .9, h * .42); c.lineTo(w, h * .38); c.lineTo(w, h); c.fill();
+    c.fillStyle = '#e8e0d0'; c.fillRect(w * .84, h * .2, w * .03, h * .21); c.fillStyle = '#b03a2e'; for (let i = 0; i < 3; i++) c.fillRect(w * .84, h * (.24 + i * .06), w * .03, h * .02);
+    c.fillStyle = '#3a3a40'; c.fillRect(w * .835, h * .17, w * .04, h * .03);
+    // harbour town on the left
+    for (let i = 0; i < 8; i++) { const x = i * w * .07, bh = h * (.08 + r() * .08); c.fillStyle = ['#8a6b4f', '#6d5a48', '#9c7a5c'][i % 3]; c.fillRect(x, h * .5 - bh, w * .06, bh); c.fillStyle = '#3a2a24'; c.beginPath(); c.moveTo(x - 4, h * .5 - bh); c.lineTo(x + w * .03, h * .5 - bh - 22); c.lineTo(x + w * .06 + 4, h * .5 - bh); c.fill(); }
+    // pier and a ship
+    c.fillStyle = '#4a3424'; c.fillRect(0, h * .62, w * .45, 10); for (let i = 0; i < 9; i++) c.fillRect(i * w * .05, h * .62, 6, h * .1);
+    c.fillStyle = '#3a2618'; c.beginPath(); c.moveTo(w * .45, h * .58); c.lineTo(w * .62, h * .58); c.lineTo(w * .59, h * .64); c.lineTo(w * .48, h * .64); c.fill();
+    c.fillStyle = '#2a1a10'; c.fillRect(w * .53, h * .35, 4, h * .23);
+    c.fillStyle = '#e8dcc0'; c.beginPath(); c.moveTo(w * .535, h * .36); c.lineTo(w * .6, h * .5); c.lineTo(w * .535, h * .52); c.fill();
+    vignette(c, w, h, .5);
+    return { lights: [{ x: w * .855, y: h * .19, r: w * .2, col: [255, 230, 150], a: time === 'night' || time === 'dusk' ? .7 : .2, f: .4, beam: true }], particles: time === 'night' ? 'none' : 'motes', water: { y: h * .55 } };
+  };
+
+  P.ship = (c, w, h, r, time) => {
+    sky(c, w, h, time, r);
+    const sea = c.createLinearGradient(0, h * .45, 0, h); sea.addColorStop(0, '#1d3550'); sea.addColorStop(1, '#0a1524');
+    c.fillStyle = sea; c.fillRect(0, h * .45, w, h * .55);
+    // deck in perspective
+    c.fillStyle = '#5a3c24'; c.beginPath(); c.moveTo(w * .05, h); c.lineTo(w * .3, h * .55); c.lineTo(w * .7, h * .55); c.lineTo(w * .95, h); c.fill();
+    c.strokeStyle = '#3a2616'; c.lineWidth = 2; for (let i = 1; i < 10; i++) { c.beginPath(); c.moveTo(w * .3 + i * w * .04, h * .55); c.lineTo(w * .05 + i * w * .09, h); c.stroke(); }
+    c.fillStyle = '#2a1a10'; c.fillRect(w * .48, 0, w * .025, h * .7); c.fillRect(w * .3, h * .12, w * .4, 8);
+    c.fillStyle = 'rgba(232,220,192,.85)'; c.beginPath(); c.moveTo(w * .31, h * .13); c.quadraticCurveTo(w * .5, h * .25, w * .69, h * .13); c.lineTo(w * .67, h * .45); c.quadraticCurveTo(w * .5, h * .5, w * .33, h * .45); c.fill();
+    c.strokeStyle = '#1a1008'; c.lineWidth = 1.5; for (let i = 0; i < 6; i++) { c.beginPath(); c.moveTo(w * .49, h * .02); c.lineTo(w * (.1 + i * .16), h * .62); c.stroke(); }
+    vignette(c, w, h, .6);
+    return { lights: [{ x: w * .25, y: h * .6, r: 80, col: [255, 190, 100], a: .55, f: .8, fire: true }, { x: w * .75, y: h * .6, r: 80, col: [255, 190, 100], a: .55, f: .8, fire: true }], particles: 'none', water: { y: h * .5 } };
+  };
+
+  P.snow = (c, w, h, r, time) => {
+    sky(c, w, h, time === 'night' ? 'night' : 'dawn', r);
+    c.fillStyle = 'rgba(200,215,235,.25)'; c.fillRect(0, 0, w, h);
+    const peaks = (y, col, amp) => { c.fillStyle = col; c.beginPath(); c.moveTo(0, h); for (let i = 0; i <= 8; i++) { const x = i / 8 * w; c.lineTo(x, y - (i % 2 ? amp * (.6 + r() * .4) : amp * r() * .3)); } c.lineTo(w, h); c.fill(); };
+    peaks(h * .55, '#9aa7c0', h * .35); peaks(h * .62, '#c8d3e6', h * .22);
+    c.fillStyle = '#eef3fb'; c.fillRect(0, h * .7, w, h * .3);
+    forestBand(c, w, h, h * .78, 18, h * .2, '#2a3a40', r, 'pine');
+    for (let i = 0; i < 18; i++) { c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(r() * w, h * (.72 + r() * .25), 40 + r() * 80, 8 + r() * 10, 0, 0, 7); c.fill(); }
+    vignette(c, w, h, .4);
+    return { lights: [], particles: 'snow' };
+  };
+
+  P.crypt = (c, w, h, r) => {
+    const lights = interior(c, w, h, r, '#23232c', [140, 255, 170]);
+    // niches with skulls
+    for (let i = 0; i < 10; i++) { const x = w * (.05 + i * .095), y = h * .2; c.fillStyle = '#0d0d12'; c.beginPath(); c.ellipse(x, y, 18, 24, 0, 0, 7); c.fill(); c.fillStyle = '#c9c0ac'; c.beginPath(); c.arc(x, y + 6, 7, 0, 7); c.fill(); }
+    for (let i = 0; i < 3; i++) { c.fillStyle = '#3a3a44'; c.fillRect(w * (.2 + i * .25), h * .78, w * .14, h * .07); c.fillStyle = '#4a4a54'; c.fillRect(w * (.2 + i * .25), h * .76, w * .14, h * .03); }
+    return { lights, particles: 'dust' };
+  };
+
+  P.mine = (c, w, h, r) => {
+    const lights = interior(c, w, h, r, '#2b241d', [255, 170, 80]);
+    c.strokeStyle = '#4a3420'; c.lineWidth = 14;
+    for (let i = 0; i < 3; i++) { const x = w * (.18 + i * .32); c.beginPath(); c.moveTo(x - 60, h * .78); c.lineTo(x - 60, h * .2); c.lineTo(x + 60, h * .2); c.lineTo(x + 60, h * .78); c.stroke(); }
+    c.strokeStyle = '#6b6b70'; c.lineWidth = 4; c.beginPath(); c.moveTo(0, h * .9); c.lineTo(w, h * .86); c.moveTo(0, h * .95); c.lineTo(w, h * .91); c.stroke();
+    c.fillStyle = '#3a2a1a'; c.fillRect(w * .6, h * .76, w * .1, h * .08);
+    for (let i = 0; i < 12; i++) { c.fillStyle = ['#5ad1ff', '#b38cff', '#7dffb0'][i % 3]; c.beginPath(); c.arc(r() * w, h * (.1 + r() * .6), 2 + r() * 3, 0, 7); c.fill(); }
+    return { lights, particles: 'dust' };
+  };
+
+  P.seacave = (c, w, h, r) => {
+    c.fillStyle = '#0d1a1f'; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 30; i++) { c.fillStyle = EW.shade('#16262c', Math.round(r() * 20)); const x = r() * w; c.beginPath(); c.moveTo(x - 40, 0); c.lineTo(x + 40, 0); c.lineTo(x, h * (.15 + r() * .25)); c.fill(); }
+    const wg = c.createLinearGradient(0, h * .6, 0, h); wg.addColorStop(0, '#1b4a52'); wg.addColorStop(1, '#071a1e');
+    c.fillStyle = wg; c.fillRect(0, h * .62, w, h * .38);
+    c.fillStyle = 'rgba(120,220,210,.15)'; c.beginPath(); c.ellipse(w * .5, h * .3, w * .2, h * .2, 0, 0, 7); c.fill();
+    vignette(c, w, h, .65);
+    const lights = []; for (let i = 0; i < 8; i++) lights.push({ x: r() * w, y: h * (.2 + r() * .4), r: 30, col: [110, 255, 220], a: .4, f: .5, wisp: true, phase: r() * 10 });
+    return { lights, particles: 'dust', water: { y: h * .65 } };
+  };
+
+  P.hoard = (c, w, h, r) => {
+    c.fillStyle = '#100d0c'; c.fillRect(0, 0, w, h);
+    stoneWall(c, w, h, 0, h * .6, '#1c1816', r);
+    // mountains of gold
+    for (let i = 0; i < 7; i++) { const x = r() * w, ww = w * (.15 + r() * .2), hh = h * (.15 + r() * .15); const g = c.createRadialGradient(x, h * .85 - hh * .6, 4, x, h * .85, ww); g.addColorStop(0, '#ffe08a'); g.addColorStop(.5, '#c99a2e'); g.addColorStop(1, '#4a3510'); c.fillStyle = g; c.beginPath(); c.ellipse(x, h * .88, ww, hh, 0, Math.PI, 0); c.fill(); }
+    c.fillStyle = '#4a3510'; c.fillRect(0, h * .88, w, h * .12);
+    for (let i = 0; i < 80; i++) { c.fillStyle = ['#fff3b0', '#ffd34d', '#e0a020'][i % 3]; c.beginPath(); c.arc(r() * w, h * (.72 + r() * .25), 1.5 + r() * 2.5, 0, 7); c.fill(); }
+    // the dragon's silhouette coiled on top
+    c.fillStyle = '#0a0a0a'; c.beginPath(); c.ellipse(w * .5, h * .64, w * .16, h * .09, 0, 0, 7); c.fill();
+    c.beginPath(); c.moveTo(w * .6, h * .62); c.quadraticCurveTo(w * .72, h * .4, w * .64, h * .3); c.lineTo(w * .62, h * .33); c.quadraticCurveTo(w * .66, h * .45, w * .56, h * .6); c.fill();
+    for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(w * .5, h * .58); c.quadraticCurveTo(w * (.5 + sd * .25), h * .3, w * (.5 + sd * .35), h * .45); c.quadraticCurveTo(w * (.5 + sd * .2), h * .5, w * .5, h * .62); c.fill(); }
+    vignette(c, w, h, .55);
+    return { lights: [{ x: w * .5, y: h * .85, r: w * .5, col: [255, 200, 80], a: .3, f: .2 }, { x: w * .636, y: h * .315, r: 10, col: [190, 255, 120], a: .9, f: .3 }], particles: 'motes' };
+  };
+
   // ------------------------------------------------------------------- engine
   function paint(backdrop, time, w, h, seed) {
     const off = document.createElement('canvas');
@@ -318,7 +408,7 @@
     const r = rng(seed);
     const painter = P[backdrop] || P.road;
     const info = painter(c, w, h, r, time || 'day') || {};
-    if (time === 'night' && !['tavern', 'chapel', 'lair', 'cave', 'dungeon', 'hall'].includes(backdrop)) { c.fillStyle = 'rgba(10,14,40,.35)'; c.fillRect(0, 0, w, h); }
+    if (time === 'night' && !['tavern', 'chapel', 'lair', 'cave', 'dungeon', 'hall', 'crypt', 'mine', 'seacave', 'hoard', 'ship'].includes(backdrop)) { c.fillStyle = 'rgba(10,14,40,.35)'; c.fillRect(0, 0, w, h); }
     return { canvas: off, info };
   }
 

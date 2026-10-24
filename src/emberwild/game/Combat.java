@@ -28,6 +28,8 @@ public final class Combat {
     final Set<Integer> phasesDone = new HashSet<>();
     boolean lavaActive = false;
     int lavaCount = 4;
+    String lavaType = "fire", lavaDice = "2d6", lavaName = "Magma";
+    int lavaDC = 13;
     final Map<String, List<String[]>> concTargets = new HashMap<>();
     int seq = 0;
     int xpPool = 0;
@@ -58,7 +60,7 @@ public final class Combat {
                     foeSpots.add(new Object[]{x, y, enc.legend.get(String.valueOf(c))});
                     c = '.';
                 }
-                else if (Character.isLetter(c) && "TLB".indexOf(c) < 0) c = '.';
+                else if (Character.isLetter(c) && "TLBGCI".indexOf(c) < 0) c = '.';
                 tiles[y][x] = c;
             }
         }
@@ -195,6 +197,7 @@ public final class Combat {
             if (u.down() && (u.isHero() && (u.hero.stable || u.hero.dead))) continue;
             if (u.down() && !u.isHero()) continue;
             game.fx(Json.obj("t", "turn", "id", u.id, "name", u.name, "side", u.side, "round", round));
+            bark(u);
             turnStartedAt = System.currentTimeMillis();
             final Unit cu = u;
             if (u.down()) { // the death save was rolled in startOfTurn
@@ -216,6 +219,36 @@ public final class Combat {
         game.changed();
     }
 
+    static final Map<String, List<String>> BARKS = Map.of(
+            "humanoid", List.of("You'll regret this!", "For the Choir!", "Get them!", "Is that all you've got?", "Hold the line!", "Cut them down!"),
+            "goblin", List.of("Shinies! Gimme!", "Stab stab stab!", "Hehehe!", "Royal stabbings!"),
+            "beast", List.of("*snarls*", "*growls low*", "*howls*"),
+            "undead", List.of("*a dry, rattling hiss*", "...join us...", "*bones grind*"),
+            "dragon", List.of("Burn, little things!", "You are ash and you know it.", "I have eaten kings.", "Kneel or burn!"),
+            "elemental", List.of("*crackles with glee*", "Hot hot HOT!"),
+            "construct", List.of("...INTRUDERS...", "...THE HEART... IS GUARDED..."),
+            "hero", List.of("Stay close!", "I've got this!", "Watch my back!", "For Harrowmere!", "Now!", "Let's end this."));
+
+    /** Occasional battle chatter: shown as speech bubbles and (optionally) spoken aloud. */
+    void bark(Unit u) {
+        if (u.isObject() || u.down()) return;
+        boolean bloodied = u.hp() < u.maxHp() / 2 && !u.has("barked_bloodied");
+        double chance = u.isBoss() ? 0.45 : u.isHero() ? 0.12 : 0.18;
+        if (round == 1 && !u.isHero()) chance = 0.35;
+        if (!bloodied && Dice.chance() > chance) return;
+        String text;
+        if (bloodied) {
+            u.add("barked_bloodied", 99);
+            text = u.isHero() ? List.of("Ugh — I'm hurt!", "Just a scratch…", "I need healing!").get(Dice.between(0, 2))
+                    : u.isBoss() ? "You… will… PAY for that!" : List.of("*staggers*", "Argh!", "Fall back!").get(Dice.between(0, 2));
+        } else {
+            String key = u.isHero() ? "hero" : u.def.name.toLowerCase().contains("goblin") || u.def.name.toLowerCase().contains("snikkit") || u.def.name.toLowerCase().contains("kobold") ? "goblin" : u.def.type;
+            List<String> l = BARKS.getOrDefault(key, BARKS.get("humanoid"));
+            text = l.get(Dice.between(0, l.size() - 1));
+        }
+        game.fx(Json.obj("t", "say", "id", u.id, "name", u.name, "text", text, "side", u.side, "boss", u.isBoss(), "voice", u.isHero() ? u.hero.id : (u.def == null ? "" : u.def.type)));
+    }
+
     /** Called from scheduled tasks: end the given unit's turn and move on (ignored if the turn already moved on). */
     void advanceFrom(Unit u) {
         synchronized (game) {
@@ -226,6 +259,7 @@ public final class Combat {
 
     void startOfTurn(Unit u) {
         u.action = true; u.bonus = true; u.reaction = true; u.slotUsed = false; u.disengaged = false;
+        u.attacksLeft = 0;
         u.reckless = false; u.sneakUsed = false; u.colossusUsed = false; u.frenzyUsed = false; u.moved = false;
         u.move = u.speed();
         u.remove("shield"); u.remove("dodging"); u.remove("no_reactions"); u.remove("reckless_target"); u.remove("hidden_used");
@@ -278,22 +312,31 @@ public final class Combat {
                 if (!u.alive() || u.down()) return;
             }
         }
-        if (u.isBoss() && u.def.traits.contains("flame_aura")) {
+        if (u.isBoss()) {
             int braziers = 0;
+            if (u.def.traits.contains("fed_by_objects")) 
             for (Unit o : units) if (o.isObject() && o.active() && o.side.equals(u.side)) braziers++;
             if (braziers > 0 && u.hp() < u.maxHp()) {
                 int amt = 3 * braziers;
                 u.setHp(Math.min(u.maxHp(), u.hp() + amt));
-                game.log("The " + braziers + " Binding Brazier(s) flare — " + u.name + " regains " + amt + " HP! (Destroy the braziers!)", "warn");
+                String objName = units.stream().filter(o -> o.isObject() && o.active() && o.side.equals(u.side)).findFirst().map(o -> o.def.name).orElse("objects");
+                game.log(braziers + " × " + objName + " pulse with power — " + u.name + " regains " + amt + " HP! (Destroy them!)", "warn");
                 game.fx(Json.obj("t", "heal", "id", u.id, "amount", amt));
             }
             if (lavaActive) eruptAndTelegraph();
         }
         // terrain hazards
-        if (tile(u.x, u.y) == 'L' && !u.flies()) {
+        if (hazard(u.x, u.y) && !u.flies()) {
             Dice.Roll d = Dice.roll("2d6");
-            game.log(u.name + " starts the turn in lava! (" + d.total + " fire)", "bad");
-            damage(u, d.total, "fire", null, false, "Lava");
+            game.log(u.name + " starts the turn in " + hazardName(u.x, u.y) + "! (" + d.total + " " + hazardType(u.x, u.y) + ")", "bad");
+            damage(u, d.total, hazardType(u.x, u.y), null, false, "Hazard");
+        }
+        // Spirit Guardians and similar auras hurt enemies who start their turn inside them
+        for (Unit g : new ArrayList<>(units)) {
+            if (!g.active() || !g.has("spirit_guardians") || g.side.equals(u.side) || dist(g, u) > 3 || !u.active()) continue;
+            Spells.SpellDef sg = Spells.get("spirit_guardians");
+            game.log("Spirit guardians wheel around " + u.name + "!", "spell");
+            saveSpell(g, sg, u, g.hero == null ? "3d8" : (g.hero.level >= 5 ? "3d8" : "3d8"));
         }
         // escape a grapple automatically (uses Athletics / Acrobatics)
         if (u.has("grappled") && u.active()) {
@@ -426,14 +469,17 @@ public final class Combat {
     // ===================================================================================== geometry
     char tile(int x, int y) { return x < 0 || y < 0 || x >= w || y >= h ? '#' : tiles[y][x]; }
     boolean wall(int x, int y) { char c = tile(x, y); return c == '#'; }
-    boolean blocksWalk(int x, int y) { char c = tile(x, y); return c == '#' || c == 'T'; }
+    boolean blocksWalk(int x, int y) { char c = tile(x, y); return c == '#' || c == 'T' || c == 'C'; }
+    boolean hazard(int x, int y) { char c = tile(x, y); return c == 'L' || c == 'G'; }
+    String hazardType(int x, int y) { return tile(x, y) == 'G' ? "acid" : "fire"; }
+    String hazardName(int x, int y) { return tile(x, y) == 'G' ? "a pool of bubbling acid" : "the flames"; }
     boolean blocksSight(int x, int y) { char c = tile(x, y); return c == '#' || c == 'T'; }
 
     int stepCost(Unit u, int x, int y) {
         int worst = 5;
         for (int dy = 0; dy < (u == null ? 1 : u.size); dy++) for (int dx = 0; dx < (u == null ? 1 : u.size); dx++) {
             char c = tile(x + dx, y + dy);
-            if ((c == ',' || c == '~' || c == 'B') && !(u != null && (u.flies() || (u.isHero() && u.hero.itemBonus("ignore_difficult") > 0)))) worst = 10;
+            if ((c == ',' || c == '~' || c == 'B' || c == 'I') && !(u != null && (u.flies() || (u.isHero() && u.hero.itemBonus("ignore_difficult") > 0)))) worst = 10;
         }
         return worst;
     }
@@ -452,7 +498,7 @@ public final class Combat {
             int cx = x + dx, cy = y + dy;
             if (cx < 0 || cy < 0 || cx >= w || cy >= h) return false;
             if (wall(cx, cy)) return false;
-            if (tile(cx, cy) == 'T' && !(u != null && u.flies())) return false;
+            if ((tile(cx, cy) == 'T' || tile(cx, cy) == 'C') && !(u != null && u.flies())) return false;
             if (!ignoreUnits && occupant(cx, cy, u) != null) return false;
         }
         return true;
@@ -462,7 +508,7 @@ public final class Combat {
         for (int dy = 0; dy < u.size; dy++) for (int dx = 0; dx < u.size; dx++) {
             int cx = x + dx, cy = y + dy;
             if (cx < 0 || cy < 0 || cx >= w || cy >= h || wall(cx, cy)) return false;
-            if (tile(cx, cy) == 'T' && !u.flies()) return false;
+            if ((tile(cx, cy) == 'T' || tile(cx, cy) == 'C') && !u.flies()) return false;
             Unit o = occupant(cx, cy, u);
             if (o != null && !o.side.equals(u.side) && !o.incapacitated() && !o.isObject()) return false;
             if (o != null && o.isObject()) return false;
@@ -530,7 +576,7 @@ public final class Combat {
                 if (d[0] != 0 && d[1] != 0 && (blocksWalk(cx + d[0], cy) && blocksWalk(cx, cy + d[1])) && !u.flies()) continue;
                 int c = cur[0] + stepCost(u, nx, ny);
                 if (aiAvoidHazards) {
-                    if (tile(nx, ny) == 'L' && !u.flies()) c += 40;
+                    if (hazard(nx, ny) && !u.flies()) c += 40;
                     for (int[] wcell : warnings) if (wcell[0] == nx && wcell[1] == ny) c += 15;
                 }
                 int key = ny * w + nx;
@@ -632,12 +678,12 @@ public final class Combat {
                     break;
                 }
             }
-            if (tile(u.x, u.y) == 'L' && !u.flies()) {
+            if (hazard(u.x, u.y) && !u.flies()) {
                 flushTrail(u, trail);
                 trail.clear(); trail.add(List.of(u.x, u.y));
                 Dice.Roll d = Dice.roll("2d6");
-                game.log(u.name + " wades through lava! (" + d.total + " fire)", "bad");
-                damage(u, d.total, "fire", null, false, "Lava");
+                game.log(u.name + " wades through " + hazardName(u.x, u.y) + "! (" + d.total + " " + hazardType(u.x, u.y) + ")", "bad");
+                damage(u, d.total, hazardType(u.x, u.y), null, false, "Hazard");
                 if (!u.active()) return;
             }
         }
@@ -853,14 +899,32 @@ public final class Combat {
         if (dx == 0 && dy == 0) dx = 1;
         List<Object> trail = new ArrayList<>();
         trail.add(List.of(t.x, t.y));
+        boolean fell = false;
         for (int i = 0; i < squares; i++) {
             int nx = t.x + dx, ny = t.y + dy;
+            if (tile(nx, ny) == 'C' && !t.flies() && t.size == 1 && occupant(nx, ny, t) == null) { t.x = nx; t.y = ny; trail.add(List.of(t.x, t.y)); fell = true; break; }
             if (!canStand(t, nx, ny, t.size, false)) break;
             t.x = nx; t.y = ny;
             trail.add(List.of(t.x, t.y));
         }
+        if (fell) {
+            game.fx(Json.obj("t", "move", "id", t.id, "path", trail, "push", true));
+            game.fx(Json.obj("t", "fall", "id", t.id));
+            if (t.isHero()) {
+                int d = Dice.roll("3d6").total;
+                game.log(t.name + " plunges into the chasm and claws back up a ledge! (" + d + " bludgeoning)", "bad");
+                int[] back = nearFree(new int[]{t.x - dx, t.y - dy}, 1);
+                if (back != null) { t.x = back[0]; t.y = back[1]; }
+                t.add("prone", 99);
+                damage(t, d, "bludgeoning", from, false, "Fall");
+            } else {
+                game.log("⬇ " + t.name + " is shoved over the edge and plummets into the dark!", "crit");
+                die(t);
+            }
+            return;
+        }
         if (trail.size() > 1) { game.fx(Json.obj("t", "move", "id", t.id, "path", trail, "push", true)); game.log(t.name + " is pushed back " + ((trail.size() - 1) * 5) + " ft.", "info"); }
-        if (tile(t.x, t.y) == 'L' && !t.flies()) { int d = Dice.roll("2d6").total; game.log(t.name + " is shoved into lava! (" + d + " fire)", "good"); damage(t, d, "fire", from, false, "Lava"); }
+        if (hazard(t.x, t.y) && !t.flies()) { int d = Dice.roll("2d6").total; game.log(t.name + " is shoved into " + hazardName(t.x, t.y) + "! (" + d + " " + hazardType(t.x, t.y) + ")", "good"); damage(t, d, hazardType(t.x, t.y), from, false, "Hazard"); }
     }
 
     void monsterAttack(Unit a, Unit t, Monsters.Attack at) {
@@ -870,6 +934,11 @@ public final class Combat {
         game.fx(Json.obj("t", "attack", "from", a.id, "to", t.id, "hit", res.hit(), "crit", res.crit(), "kind", kind, "dtype", at.type, "name", at.name));
         if (!res.hit()) { game.log(a.name + "'s " + at.name + " misses " + t.name + ".", "miss"); return; }
         int dmg = Math.max(0, Dice.damage(at.damage, res.crit()).total);
+        if (t.isHero() && t.hero.hasFeature("uncanny_dodge") && t.reaction && !t.incapacitated()) {
+            t.reaction = false;
+            dmg = dmg / 2;
+            game.log("✦ " + t.name + " twists aside — Uncanny Dodge halves the damage!", "spell");
+        }
         String msg = a.name + " hits " + t.name + " with " + at.name + " for " + dmg + " " + at.type;
         int extra = 0;
         if (!at.extra.isEmpty()) { extra = Dice.damage(at.extra, res.crit()).total; msg += " + " + extra + " " + at.extraType; }
@@ -1033,7 +1102,11 @@ public final class Combat {
                             game.fx(Json.obj("t", "summon", "id", s.id));
                         }
                     }
-                    case "lava" -> { lavaActive = true; lavaCount = Json.integer(fx, "count", 4); telegraph(); }
+                    case "lava", "hazard" -> {
+                        lavaActive = true; lavaCount = Json.integer(fx, "count", 4);
+                        lavaType = Json.str(fx, "type", "fire"); lavaDice = Json.str(fx, "dice", "2d6"); lavaName = Json.str(fx, "name", "Magma"); lavaDC = Json.integer(fx, "dc", 13);
+                        telegraph();
+                    }
                     case "heal" -> heal(t, Dice.roll(Json.str(fx, "dice", "2d8")).total, "");
                     case "say" -> game.log(Json.str(fx, "text", ""), "boss");
                     case "flag" -> game.flags.add(Json.str(fx, "flag", ""));
@@ -1061,13 +1134,13 @@ public final class Combat {
             warnings.add(new int[]{x, y});
             placed++;
         }
-        game.log("The ground cracks and glows in " + warnings.size() + " places — molten rock will erupt there next round!", "warn");
-        game.fx(Json.obj("t", "telegraph", "cells", cellsJson(warnings)));
+        game.log(warnings.size() + " spots glow with warning — " + lavaName.toLowerCase() + " will strike there next round! Move!", "warn");
+        game.fx(Json.obj("t", "telegraph", "cells", cellsJson(warnings), "dtype", lavaType));
     }
 
     void eruptAndTelegraph() {
         if (!warnings.isEmpty()) {
-            game.fx(Json.obj("t", "erupt", "cells", cellsJson(warnings)));
+            game.fx(Json.obj("t", "erupt", "cells", cellsJson(warnings), "dtype", lavaType));
             scorched.clear();
             scorched.addAll(warnings);
             for (int[] c : warnings) {
@@ -1075,11 +1148,11 @@ public final class Combat {
                     if (!u.active() || u.isBoss() || u.isObject() || u.flies()) continue;
                     if (c[0] >= u.x && c[0] < u.x + u.size && c[1] >= u.y && c[1] < u.y + u.size) {
                         Dice.Roll s = Dice.d20(u.saveBonus(Ability.DEX), false, false, u.isHero() && u.hero.hasTrait("lucky"));
-                        game.rollFx(s, u.name + " — Dexterity save vs eruption (DC 13)", u.isHero() ? u.hero.player : "", false);
-                        int d = Dice.roll("2d6").total;
-                        if (s.total >= 13) d /= 2;
-                        game.log("Magma erupts beneath " + u.name + "! (" + d + " fire)", "bad");
-                        damage(u, d, "fire", null, false, "Eruption");
+                        game.rollFx(s, u.name + " — Dexterity save vs " + lavaName + " (DC " + lavaDC + ")", u.isHero() ? u.hero.player : "", false);
+                        int d = Dice.roll(lavaDice).total;
+                        if (s.total >= lavaDC) d /= 2;
+                        game.log(lavaName + " strikes " + u.name + "! (" + d + " " + lavaType + ")", "bad");
+                        damage(u, d, lavaType, null, false, lavaName);
                     }
                 }
             }
@@ -1093,32 +1166,44 @@ public final class Combat {
         return o;
     }
 
+    /** Bosses act between other creatures' turns using their legendary action list: "attack:Name", "special:id", "move". */
     void legendaryAction(Unit after) {
         for (Unit b : units) {
             if (!b.isBoss() || !b.active() || b.legendary <= 0 || b.incapacitated() || !b.side.equals("foe")) continue;
             if (after.side.equals(b.side)) continue;
-            // only spend after hero turns, one per turn
             Unit target = null;
             int best = 99;
-            for (Unit u : units) if (u.side.equals("party") && u.active() && dist(b, u) < best) { best = dist(b, u); target = u; }
+            for (Unit u : units) if (u.side.equals("party") && u.active() && !u.isObject() && dist(b, u) < best && !b.charmedBy.equals(u.id)) { best = dist(b, u); target = u; }
             if (target == null) return;
             int near = 0;
             for (Unit u : units) if (u.side.equals("party") && u.active() && dist(b, u) <= 2) near++;
-            b.legendary--;
-            if (near >= 2) {
-                Monsters.Special gust = null;
-                for (Monsters.Special s : b.def.specials) if (s.id.equals("wing_gust")) gust = s;
-                if (gust != null) { game.log("⟡ Legendary Action: " + b.name + " beats its wings!", "boss"); useSpecial(b, gust, b.x, b.y); return; }
+            List<String> acts = b.def.legendaryActions.isEmpty() ? List.of("attack:", "move") : b.def.legendaryActions;
+            String pick = null;
+            for (String a : acts) if (a.startsWith("special:") && near >= 2) {
+                String sid = a.substring(8);
+                if (b.def.specials.stream().anyMatch(x -> x.id.equals(sid))) { pick = a; break; }
             }
-            if (best <= 1) {
-                Monsters.Attack claw = b.def.attacks.get(b.def.attacks.size() - 1);
-                game.log("⟡ Legendary Action: " + b.name + " lashes out!", "boss");
-                monsterAttack(b, target, claw);
+            if (pick == null && best <= meleeReachSquares(b)) for (String a : acts) if (a.startsWith("attack")) { pick = a; break; }
+            if (pick == null) for (String a : acts) if (a.equals("move")) { pick = a; break; }
+            if (pick == null) return;
+            b.legendary--;
+            if (pick.startsWith("special:")) {
+                String sid = pick.substring(8);
+                Monsters.Special sp = b.def.specials.stream().filter(x -> x.id.equals(sid)).findFirst().get();
+                game.log("⟡ Legendary Action: " + b.name + " — " + sp.name + "!", "boss");
+                int[] aim = bestAreaAim(b, sp);
+                useSpecial(b, sp, aim == null ? target.x : aim[0], aim == null ? target.y : aim[1]);
+            } else if (pick.startsWith("attack")) {
+                String an = pick.contains(":") ? pick.substring(pick.indexOf(':') + 1) : "";
+                Monsters.Attack at = null;
+                for (Monsters.Attack a : b.def.attacks) if (!a.isRanged() && (an.isEmpty() || a.name.equalsIgnoreCase(an))) at = a;
+                if (at == null) at = b.def.attacks.get(b.def.attacks.size() - 1);
+                game.log("⟡ Legendary Action: " + b.name + " lashes out with its " + at.name.toLowerCase() + "!", "boss");
+                monsterAttack(b, target, at);
             } else {
                 game.log("⟡ Legendary Action: " + b.name + " prowls closer.", "boss");
-                Unit tt = target;
                 b.move = b.speed() / 2;
-                approach(b, tt, meleeReachSquares(b));
+                approach(b, target, meleeReachSquares(b));
             }
             return;
         }
@@ -1291,6 +1376,7 @@ public final class Combat {
             case "disengage" -> { if (!u.action) yield "No action left."; u.action = false; u.disengaged = true; game.log(u.name + " Disengages.", "info"); yield null; }
             case "dodge" -> { if (!u.action) yield "No action left."; u.action = false; u.add("dodging", 1); game.log(u.name + " takes the Dodge action.", "info"); yield null; }
             case "hide" -> doHide(u, false);
+            case "shove" -> doShove(u, byId(Json.str(req, "target", "")), Json.str(req, "mode", "push"));
             case "help" -> doHelp(u, byId(Json.str(req, "target", "")));
             case "toggleShield" -> { u.autoShield = !u.autoShield; yield null; }
             case "smite" -> { u.smiteArmed = !u.smiteArmed; game.log(u.name + (u.smiteArmed ? " readies a Divine Smite for the next melee hit." : " lowers the smite."), "info"); yield null; }
@@ -1315,9 +1401,20 @@ public final class Combat {
         return null;
     }
 
+    int extraAttacks(Unit u) { return u.isHero() && u.hero.hasFeature("extra_attack") ? 1 : 0; }
+
+    /** Spend one attack of the Attack action (Extra Attack gives a second one). */
+    boolean spendAttack(Unit u) {
+        if (u.attacksLeft > 0) { u.attacksLeft--; return true; }
+        if (!u.action) return false;
+        u.action = false;
+        u.attacksLeft = extraAttacks(u);
+        return true;
+    }
+
     String doAttack(Unit u, Unit t) {
         if (t == null || !t.alive()) return "Pick a target.";
-        if (!u.action) return "No action left.";
+        if (!u.action && u.attacksLeft <= 0) return "No action left.";
         if (t.side.equals(u.side)) return "That's an ally!";
         if (u.charmedBy.equals(t.id)) return u.name + " is charmed and can't attack " + t.name + ".";
         Items.Weapon wp = u.hero.weapon();
@@ -1328,10 +1425,30 @@ public final class Combat {
             if (d > wp.longRange) return "Out of throwing range.";
         }
         if ((wp.ranged || d > 5) && !los(u, t)) return "No line of sight.";
-        u.action = false;
-        u.remove("savage_used");
+        boolean first = u.attacksLeft <= 0;
+        spendAttack(u);
+        if (first) u.remove("savage_used");
+        if (u.attacksLeft > 0) game.log("(Extra Attack: " + u.name + " can attack again.)", "info");
         weaponAttack(u, t, wp, false);
         if (u.hero.classId.equals("barbarian") && u.reckless) u.add("reckless_target", 1);
+        return null;
+    }
+
+    /** 2024 Unarmed Strike option: Shove. Uses one attack; target saves (STR or DEX) or is pushed 5 ft / knocked Prone. */
+    String doShove(Unit u, Unit t, String mode) {
+        if (t == null || !t.alive() || t.side.equals(u.side)) return "Pick an enemy next to you.";
+        if (dist(u, t) > 1) return "You must be next to them to shove.";
+        if (t.size > u.size + 1) return t.name + " is too big to shove.";
+        if (t.isObject()) return "It won't budge.";
+        if (!spendAttack(u)) return "No action left.";
+        int dc = 8 + u.mod(Ability.STR) + (u.isHero() ? u.hero.prof() : 2);
+        Ability save = t.mod(Ability.DEX) > t.mod(Ability.STR) ? Ability.DEX : Ability.STR;
+        Dice.Roll r = Dice.d20(t.saveBonus(save), t.isHero() && t.hero.hasTrait("powerful_build"), false, false);
+        game.rollFx(r, t.name + " — " + save.full + " save vs " + u.name + "'s shove (DC " + dc + ")", t.isHero() ? t.hero.player : "", false);
+        game.fx(Json.obj("t", "attack", "from", u.id, "to", t.id, "hit", r.total < dc, "kind", "melee", "name", "Shove"));
+        if (r.total >= dc) { game.log(t.name + " braces and holds firm.", "miss"); return null; }
+        if (mode.equals("prone")) { t.add("prone", 99); game.log(u.name + " slams " + t.name + " to the ground!", "hit"); }
+        else { game.log(u.name + " shoves " + t.name + "!", "hit"); push(u, t, 1); }
         return null;
     }
 
@@ -1475,9 +1592,9 @@ public final class Combat {
                 if (feet(u, t) > 60) return "Out of range (60 ft).";
                 if (!hr.spend("bardic_inspiration")) return "No inspiration left.";
                 u.bonus = false;
-                t.bardDie = 6;
+                t.bardDie = hr.hasFeature("font_of_inspiration") ? 8 : 6;
                 game.fx(Json.obj("t", "spell", "spell", "inspire", "from", u.id, "to", t.id, "dtype", "psychic"));
-                game.log("🎵 " + u.name + " inspires " + t.name + " (d6)!", "spell");
+                game.log("🎵 " + u.name + " inspires " + t.name + " (d" + t.bardDie + ")!", "spell");
             }
             case "lay_on_hands" -> {
                 if (!u.bonus) return "No bonus action left.";
@@ -1502,6 +1619,7 @@ public final class Combat {
                 else {
                     Dice.Roll s = Dice.d20(t.saveBonus(Ability.CON), false, false, false);
                     int d = s.total >= hr.spellDC() ? r.total / 2 : r.total;
+                    if (hr.hasFeature("sear_undead") && (t.creatureType().equals("undead") || t.creatureType().equals("fiend"))) d += Dice.roll("2d8").total;
                     game.fx(Json.obj("t", "spell", "spell", "sacred_flame", "from", u.id, "to", t.id, "dtype", "radiant"));
                     game.log("Divine Spark sears " + t.name + " for " + d + " radiant.", "spell");
                     damage(t, d, "radiant", u, false, "Divine Spark");
@@ -1618,7 +1736,7 @@ public final class Combat {
         if (s.cast == Spells.Cast.ACTION && !u.action) return "No action left.";
         // targets
         List<Unit> targets = new ArrayList<>();
-        for (String tid : Json.strings(req, "targets")) { Unit t = byId(tid); if (t != null && t.alive()) targets.add(t); }
+        for (String tid : Json.strings(req, "targets")) { Unit t = byId(tid); if (t != null && (t.alive() || (s.id.equals("revivify") && t.isHero()))) targets.add(t); }
         int px = Json.integer(req, "x", -1), py = Json.integer(req, "y", -1);
         String element = Json.str(req, "element", "fire");
         if (!Set.of("acid", "cold", "fire", "lightning", "poison", "thunder").contains(element)) element = "fire";
@@ -1663,7 +1781,8 @@ public final class Combat {
                 }
                 return null;
             }
-            case CONE, CUBE -> { if (px < 0) return "Pick a direction."; return null; }
+            case CONE, CUBE, LINE -> { if (px < 0) return "Pick a direction."; return null; }
+            case SELF -> { return null; }
             case SPHERE -> {
                 if (px < 0) return "Pick a point.";
                 int d = Math.max(0, gap(u.x, u.y, u.size, px, py, 1)) * 5;
@@ -1749,6 +1868,8 @@ public final class Combat {
                 switch (s.area) {
                     case CONE -> cells = coneCells(u, px, py, s.areaSize / 5);
                     case CUBE -> cells = cubeCells(u, px, py, s.areaSize / 5);
+                    case LINE -> cells = lineCells(u, px, py, s.areaSize / 5);
+                    case SELF -> { cells = sphereAround(u, s.areaSize / 5); u.add("spirit_guardians", 99); addConc(u, s.id, u, "spirit_guardians"); }
                     case SPHERE -> cells = sphereCells(px, py, Math.max(0, s.areaSize / 5));
                     default -> victims.addAll(targets);
                 }
@@ -1756,7 +1877,7 @@ public final class Combat {
                     game.fx(Json.obj("t", "area", "shape", s.area.name().toLowerCase(), "cells", cellsJson(cells), "dtype", s.damageType.isEmpty() ? "arcane" : s.damageType, "from", u.id, "name", s.name, "spell", s.id));
                     for (Unit v : unitsIn(cells, u)) {
                         // you choose who is affected by Sleep / Bless-like spells; damaging areas hit everyone (careful!)
-                        if (s.dice.isEmpty() && v.side.equals(u.side)) continue;
+                        if ((s.dice.isEmpty() || s.area == Spells.Area.SELF) && v.side.equals(u.side)) continue;
                         victims.add(v);
                     }
                     if (s.id.equals("flaming_sphere")) u.add("flaming_sphere", 99);
@@ -1766,7 +1887,7 @@ public final class Combat {
                 for (Unit v : victims) saveSpell(u, s, v, dice);
             }
             case HEAL -> {
-                Unit t = targets.get(0);
+              for (Unit t : s.area == Spells.Area.MULTI ? targets : targets.subList(0, 1)) {
                 Dice.Roll r = Dice.roll(dice);
                 int amt = r.total + Math.max(0, hr.mod(hr.castingAbilityFor(s.id)));
                 if (hr.hasFeature("disciple_of_life")) amt += 2 + lvl;
@@ -1774,6 +1895,7 @@ public final class Combat {
                 game.fx(Json.obj("t", "spell", "spell", s.id, "from", u.id, "to", t.id, "hit", true, "dtype", "radiant"));
                 heal(t, amt, s.name);
                 if (t.isHero()) t.hero.stable = false;
+              }
             }
             case BUFF -> {
                 switch (s.id) {
@@ -1799,6 +1921,14 @@ public final class Combat {
                         game.fx(Json.obj("t", "teleport", "id", u.id, "from", List.of(u.x, u.y), "to", List.of(px, py)));
                         u.x = px; u.y = py;
                         game.log(u.name + " vanishes in silver mist and reappears 30 ft away!", "spell");
+                    }
+                    case "revivify" -> {
+                        Unit t = targets.isEmpty() ? null : targets.get(0);
+                        if (t == null || !t.isHero() || !t.hero.dead) { game.log("Revivify needs a fallen ally.", "info"); return; }
+                        if (dist(u, t) > 1) { game.log("You must touch them.", "info"); return; }
+                        t.hero.dead = false; t.hero.hp = 1; t.hero.deathFailures = 0; t.hero.deathSuccesses = 0; t.remove("prone");
+                        game.fx(Json.obj("t", "heal", "id", t.id, "amount", 1));
+                        game.log("✦ Light floods back into " + t.name + "'s eyes — REVIVIFIED!", "crit");
                     }
                     case "lesser_restoration" -> {
                         Unit t = targets.isEmpty() ? u : targets.get(0);
@@ -1886,7 +2016,11 @@ public final class Combat {
             switch (s.condition) {
                 case "pushed" -> push(u, v, 2);
                 case "charmed" -> { v.add("charmed", 10); v.charmedBy = u.id; addConc(u, s.id, v, "charmed"); game.log("💗 " + v.name + " is CHARMED by " + u.name + " and won't attack her!", "spell"); }
-                case "incapacitated" -> { v.add("asleep", 10); v.add("prone", 99); addConc(u, s.id, v, "asleep"); game.log("💤 " + v.name + " slumps to the ground, fast asleep.", "spell"); }
+                case "incapacitated" -> {
+                    v.add("asleep", 10); addConc(u, s.id, v, "asleep");
+                    if (s.id.equals("sleep")) { v.add("prone", 99); game.log("💤 " + v.name + " slumps to the ground, fast asleep.", "spell"); }
+                    else game.log("🌀 " + v.name + " stares, mesmerised by the shifting colours.", "spell");
+                }
                 case "paralyzed" -> { v.add("paralyzed", 99); addConc(u, s.id, v, "paralyzed"); game.log("⛓ " + v.name + " is held rigid — Paralyzed!", "spell"); }
                 case "outlined" -> { v.add("outlined", 10); addConc(u, s.id, v, "outlined"); game.log(v.name + " is outlined in violet faerie fire.", "spell"); }
                 case "frightened" -> { v.add("frightened", 1); game.log(v.name + " recoils in terror.", "spell"); }
@@ -1979,7 +2113,7 @@ public final class Combat {
             if (!los(x + 0.5, y + 0.5, t.x + t.size / 2.0, t.y + t.size / 2.0, null, t)) continue;
             int nearest = 99;
             for (Unit f : foesOf(u)) nearest = Math.min(nearest, gap(x, y, u.size, f.x, f.y, f.size));
-            double score = Math.min(nearest, 6) * 3 - e.getValue() / 10.0 + (tile(x, y) == 'B' ? 0 : 0) - (tile(x, y) == 'L' ? 50 : 0);
+            double score = Math.min(nearest, 6) * 3 - e.getValue() / 10.0 + (tile(x, y) == 'B' ? 0 : 0) - (hazard(x, y) ? 50 : 0);
             if (score > bestScore) { bestScore = score; bestKey = e.getKey(); }
         }
         if (bestKey >= 0 && bestKey != u.y * w + u.x) {
@@ -2002,7 +2136,7 @@ public final class Combat {
             if (!t.conc.isEmpty()) s += 3;
             if (t.isObject()) {
                 // the party should smash whatever is empowering the boss
-                boolean empowering = units.stream().anyMatch(b -> b.isBoss() && b.active() && b.side.equals(t.side) && b.def.traits.contains("flame_aura"));
+                boolean empowering = units.stream().anyMatch(b -> b.isBoss() && b.active() && b.side.equals(t.side) && b.def.traits.contains("fed_by_objects"));
                 s += u.side.equals("party") ? (empowering ? 7 : -4) : -99;
             }
             if (ranged && !los(u, t)) s -= 10;
@@ -2163,6 +2297,16 @@ public final class Combat {
             for (Unit o : units) if (o.side.equals("party") && o.active() && o.hp() < o.maxHp() * 0.3 && feet(u, o) <= 60) { doCast(u, Json.obj("spell", "healing_word", "targets", List.of(o.id))); break; }
         }
         if (hr.classId.equals("barbarian") && !u.has("raging") && hr.res("rage") > 0 && u.bonus) doFeature(u, Json.obj("id", "rage"));
+        if (hr.canCast("mass_healing_word") && u.bonus && !u.slotUsed && hr.lowestSlot(3) > 0
+                && units.stream().filter(o -> o.side.equals("party") && o.alive() && o.isHero() && o.hp() < o.maxHp() / 2 && feet(u, o) <= 60).count() >= 2) {
+            List<String> ids = new ArrayList<>();
+            for (Unit o : units) if (o.side.equals("party") && o.alive() && o.isHero() && o.hp() < o.maxHp() && feet(u, o) <= 60 && ids.size() < 6) ids.add(o.id);
+            doCast(u, Json.obj("spell", "mass_healing_word", "targets", ids, "level", 3));
+        }
+        if (hr.canCast("spirit_guardians") && u.action && !u.slotUsed && hr.lowestSlot(3) > 0 && !u.has("spirit_guardians")
+                && foesOf(u).stream().filter(f -> !f.isObject() && dist(u, f) <= 4).count() >= 2) {
+            if (doCast(u, Json.obj("spell", "spirit_guardians", "level", 3, "x", u.x, "y", u.y)) == null) return;
+        }
         if (hr.classId.equals("cleric") && round == 1 && hr.canCast("bless") && hr.lowestSlot(1) > 0 && u.action && u.conc.isEmpty()) {
             List<String> ids = new ArrayList<>();
             for (Unit o : units) if (o.side.equals("party") && o.active() && feet(u, o) <= 30 && ids.size() < 3) ids.add(o.id);
@@ -2193,11 +2337,12 @@ public final class Combat {
         if (t == null) return;
         if (caster) {
             // area spell if 2+ foes clustered nearby
-            for (String sid : List.of("burning_hands", "thunderwave", "shatter")) {
+            for (String sid : List.of("fireball", "lightning_bolt", "hypnotic_pattern", "burning_hands", "thunderwave", "shatter")) {
                 if (!hr.canCast(sid) || hr.lowestSlot(Spells.get(sid).level) == 0 || u.slotUsed) continue;
                 Spells.SpellDef s = Spells.get(sid);
                 for (Unit f : foesOf(u)) {
-                    List<int[]> cells = s.area == Spells.Area.CONE ? coneCells(u, f.x, f.y, s.areaSize / 5) : s.area == Spells.Area.CUBE ? cubeCells(u, f.x, f.y, s.areaSize / 5) : sphereCells(f.x, f.y, s.areaSize / 5);
+                    List<int[]> cells = s.area == Spells.Area.CONE ? coneCells(u, f.x, f.y, s.areaSize / 5) : s.area == Spells.Area.CUBE ? cubeCells(u, f.x, f.y, s.areaSize / 5)
+                            : s.area == Spells.Area.LINE ? lineCells(u, f.x, f.y, s.areaSize / 5) : sphereCells(f.x, f.y, s.areaSize / 5);
                     if (s.area == Spells.Area.SPHERE && feet(u, f) > s.range) continue;
                     int foesHit = 0, alliesHit = 0;
                     for (Unit v : unitsIn(cells, u)) { if (v.side.equals(u.side)) alliesHit++; else if (!v.isObject()) foesHit++; }
@@ -2240,11 +2385,15 @@ public final class Combat {
         // weapon attack
         if (wp.ranged) {
             if (feet(u, t) > wp.range || !los(u, t)) kite(u, t, wp.range / 5);
-            if (feet(u, t) <= wp.longRange && los(u, t)) doAttack(u, t);
+            if (feet(u, t) <= wp.longRange && los(u, t)) { doAttack(u, t); while (u.attacksLeft > 0 && t.active()) doAttack(u, t); }
         } else {
             if (approach(u, t, 1)) {
                 if (hr.classId.equals("barbarian") && hr.hasFeature("reckless_attack")) u.reckless = true;
                 doAttack(u, t);
+                while (u.attacksLeft > 0 && u.active()) {
+                    if (!t.active()) { t = pickTarget(u, false); if (t == null || !approach(u, t, 1)) break; }
+                    doAttack(u, t);
+                }
                 if (hr.res("action_surge") > 0 && t.active() && !u.action && hr.classId.equals("fighter")) { doFeature(u, Json.obj("id", "action_surge")); if (t.active()) doAttack(u, t); }
             } else if (wp.thrown && feet(u, t) <= wp.longRange && los(u, t)) doAttack(u, t);
             else if (u.action) { u.action = false; u.move += u.speed(); approach(u, t, 1); }
@@ -2279,7 +2428,7 @@ public final class Combat {
                 "nonlethal", enc.nonlethal);
         if (cur != null && cur.isHero() && !cur.ai) {
             m.put("turnInfo", Json.obj("action", cur.action, "bonus", cur.bonus, "reaction", cur.reaction, "move", cur.move,
-                    "slotUsed", cur.slotUsed, "autoShield", cur.autoShield, "smiteArmed", cur.smiteArmed, "reckless", cur.reckless));
+                    "slotUsed", cur.slotUsed, "autoShield", cur.autoShield, "smiteArmed", cur.smiteArmed, "reckless", cur.reckless, "attacksLeft", cur.attacksLeft));
             m.put("reach", reachable(cur));
             m.put("options", options(cur));
         }

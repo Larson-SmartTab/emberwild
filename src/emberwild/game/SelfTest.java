@@ -13,7 +13,18 @@ import java.util.*;
  * Used to check the campaign can always be finished and that the encounters are winnable.
  */
 public final class SelfTest {
-    public static boolean run(CampaignRegistry registry, Path saves, int runs) throws Exception {
+    public static boolean run(CampaignRegistry registry, Path saves, int runs) throws Exception { return run(registry, saves, runs, "emberwild"); }
+
+    /** Heroes the bot party uses: the campaign's own pre-made heroes, falling back to the core ones. */
+    static List<String[]> botHeroes(CampaignRegistry registry, String campaign) {
+        List<String[]> out = new ArrayList<>();
+        emberwild.story.Campaign c = registry.get(campaign);
+        if (c != null) for (Hero h : c.pregens) if (!h.npc) out.add(new String[]{campaign, h.id});
+        if (out.size() < 3) for (String id : List.of("sylwen", "torva", "kael", "pip")) if (out.size() < 3) out.add(new String[]{"emberwild", id});
+        return out;
+    }
+
+    public static boolean run(CampaignRegistry registry, Path saves, int runs, String campaign) throws Exception {
         int finished = 0, totalWon = 0, totalLost = 0;
         Map<String, int[]> byBattle = new TreeMap<>();
         Set<String> scenesSeen = new TreeSet<>();
@@ -25,11 +36,12 @@ public final class SelfTest {
             Random rnd = new Random(run * 7919L);
             String pid;
             synchronized (g) {
+                List<String[]> hs = botHeroes(registry, campaign);
                 pid = g.join("selftest-bot", "Bot", false).id;
-                g.claimPregen(pid, "emberwild", "sylwen");
-                if (extra >= 1) { String p2 = g.join("selftest-bot2", "Bot2", false).id; g.claimPregen(p2, "emberwild", "torva"); }
-                if (extra >= 2) { String p3 = g.join("selftest-bot3", "Bot3", false).id; g.claimPregen(p3, "emberwild", "kael"); }
-                Map<String, Object> r = g.start(pid, "emberwild");
+                g.claimPregen(pid, hs.get(0)[0], hs.get(0)[1]);
+                if (extra >= 1) { String p2 = g.join("selftest-bot2", "Bot2", false).id; g.claimPregen(p2, hs.get(1)[0], hs.get(1)[1]); }
+                if (extra >= 2) { String p3 = g.join("selftest-bot3", "Bot3", false).id; g.claimPregen(p3, hs.get(2)[0], hs.get(2)[1]); }
+                Map<String, Object> r = g.start(pid, campaign);
                 if (!Json.bool(r, "ok", false)) throw new IllegalStateException("start failed: " + r);
             }
             List<String> route = new ArrayList<>();
@@ -112,5 +124,49 @@ public final class SelfTest {
         System.out.printf("%nSelf-test: %d/%d runs finished, %d battles won, %d lost, %d distinct scenes visited, %.1fs%n",
                 finished, runs, totalWon, totalLost, scenesSeen.size(), (System.currentTimeMillis() - t0) / 1000.0);
         return finished == runs;
+    }
+
+    /**
+     * Balance tool: fight one encounter many times with the campaign's heroes (plus its companions if it has any)
+     * at a given level and report the win rate. Usage: --battletest campaign encounter level [flags,comma,separated] [runs]
+     */
+    public static void battleTest(CampaignRegistry registry, Path saves, String campaign, String encounter, int level, String flags, int runs, int heroes) throws Exception {
+        emberwild.story.Campaign c = registry.get(campaign);
+        if (c == null || !c.encounters.containsKey(encounter)) { System.out.println("Unknown campaign/encounter: " + campaign + "/" + encounter); return; }
+        int won = 0, rounds = 0, deaths = 0;
+        for (int i = 0; i < runs; i++) {
+            Game g = new Game(registry, saves.resolve("battletest"));
+            g.fast = true;
+            String pid;
+            synchronized (g) {
+                pid = g.join("battletest-bot", "Bot", false).id;
+                List<String[]> hs = botHeroes(registry, campaign);
+                for (int k = 0; k < Math.min(heroes, hs.size()); k++) {
+                    String p = k == 0 ? pid : g.join("battletest-bot" + k, "Bot" + k, false).id;
+                    g.claimPregen(p, hs.get(k)[0], hs.get(k)[1]);
+                }
+                g.campaignId = campaign; g.sceneCampaign = campaign; g.phase = "story";
+                for (Hero h : c.pregens) if (h.npc && g.heroes.size() < 3) g.apply(emberwild.story.Fx.companion(h.id, 3), null, null);
+                for (Hero h : g.heroes) { for (int L = h.level + 1; L <= level; L++) h.levelUp(L); h.longRest(); }
+                if (flags != null && !flags.isBlank() && !flags.equals("none")) for (String f : flags.split(",")) g.flags.add(f.trim());
+                emberwild.story.Campaign.Choice ch = new emberwild.story.Campaign().scene("__battletest").choice("x").battle(encounter).victory("won", "@end");
+                g.beginBattle(ch);
+            }
+            long end = System.currentTimeMillis() + 30000;
+            while (System.currentTimeMillis() < end) {
+                Thread.sleep(2);
+                synchronized (g) {
+                    if (g.combat == null) break;
+                    Unit u = g.combat.current();
+                    if (u != null && u.isHero() && !u.ai && !u.has("autoplaying") && !g.combat.over && !u.down()) g.combatAction(u.hero.player, Json.obj("type", "auto"));
+                }
+            }
+            synchronized (g) {
+                for (String[] b : g.battleHistory) { if (b[1].equals("victory")) won++; rounds += Integer.parseInt(b[2]); deaths += Integer.parseInt(b[3]); }
+            }
+            g.shutdown();
+        }
+        System.out.printf("%s/%s at level %d with %d hero(es) [%s]: won %d of %d (%.0f%%), avg %.1f rounds, %d hero deaths%n",
+                campaign, encounter, level, heroes, flags == null ? "" : flags, won, runs, 100.0 * won / runs, rounds / (double) runs, deaths);
     }
 }

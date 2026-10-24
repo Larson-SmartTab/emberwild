@@ -20,6 +20,8 @@ public final class Unit implements Json.JsonAble {
     public String charmedBy = "", vexedBy = "", markedBy = "", helpedVs = "";
     public boolean action, bonus, reaction = true, slotUsed, disengaged, reckless, sneakUsed, colossusUsed, frenzyUsed, moved;
     public int move;                  // feet of movement left this turn
+    public int attacksLeft;           // remaining attacks from Extra Attack
+    public String voice = "";        // voice casting hint for barks
     public String conc = "";          // spell id being concentrated on
     public final Map<String, Boolean> ready = new HashMap<>();   // special id -> recharged
     public final Map<String, Integer> uses = new HashMap<>();    // special id -> uses left

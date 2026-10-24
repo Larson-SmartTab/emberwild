@@ -76,6 +76,7 @@ public final class Hero implements Json.JsonAble {
         int sp = s == null ? 30 : s.speed;
         Species.Lineage l = s == null ? null : s.lineage(lineageId);
         if (l != null && l.speed > 0) sp = l.speed;
+        if (hasFeature("fast_movement")) sp += 10;
         return sp + itemBonus("speed");
     }
 
@@ -276,7 +277,8 @@ public final class Hero implements Json.JsonAble {
         return sb.toString().trim();
     }
 
-    public static int xpForLevel(int lvl) { return switch (lvl) { case 2 -> 300; case 3 -> 900; case 4 -> 2700; default -> 0; }; }
+    public static final int MAX_LEVEL = 5;
+    public static int xpForLevel(int lvl) { return switch (lvl) { case 2 -> 300; case 3 -> 900; case 4 -> 2700; case 5 -> 6500; default -> 0; }; }
 
     /** Recalculate max HP, slots and resources for the current level. Keeps current HP proportional. */
     public void recompute(boolean keepCurrent) {
@@ -335,10 +337,20 @@ public final class Hero implements Json.JsonAble {
     /** Level up: more HP, slots, prepared spells and features. Returns a summary of what was gained. */
     public List<String> levelUp(int to) {
         List<String> gained = new ArrayList<>();
-        if (to <= level || to > 3) return gained;
+        if (to <= level || to > 5) return gained;
         Classes.ClassDef c = classDef();
         int from = level;
         level = to;
+        if (from < 4 && to >= 4) {
+            // Ability Score Improvement: +2 primary (cap 20); spill over to Constitution
+            Ability pa = c.primary;
+            if (c.spellAbility != null) pa = c.spellAbility;
+            int before = scores[pa.ordinal()];
+            scores[pa.ordinal()] = Math.min(20, before + 2);
+            int left = 2 - (scores[pa.ordinal()] - before);
+            if (left > 0) scores[Ability.CON.ordinal()] = Math.min(20, scores[Ability.CON.ordinal()] + left);
+            gained.add("+2 " + pa.full);
+        }
         recompute(true);
         for (Classes.Feature f : c.features) if (f.level() > from && f.level() <= to) gained.add(f.name());
         if (c.caster()) {
@@ -346,6 +358,16 @@ public final class Hero implements Json.JsonAble {
             int want = c.preparedAt(level);
             prepared.removeIf(x -> alwaysPrepared().contains(x)); // domain/oath spells don't use up prepared picks
             List<String> prefs = new ArrayList<>();
+            if (level >= 5) {
+                switch (classId) {
+                    case "wizard" -> prefs.addAll(List.of("fireball", "lightning_bolt"));
+                    case "cleric" -> prefs.addAll(List.of("spirit_guardians", "mass_healing_word", "revivify"));
+                    case "bard" -> prefs.addAll(List.of("hypnotic_pattern", "mass_healing_word"));
+                    case "paladin" -> prefs.addAll(List.of("aid"));
+                    case "ranger" -> prefs.addAll(List.of("lesser_restoration"));
+                    default -> {}
+                }
+            }
             if (level >= 3) {
                 // Signature 2nd-level picks per class, then the class defaults.
                 switch (classId) {
@@ -360,14 +382,14 @@ public final class Hero implements Json.JsonAble {
             for (String s : prefs) {
                 Spells.SpellDef sd = Spells.get(s);
                 if (sd == null || sd.level > c.maxSpellLevel(level) || prepared.contains(s) || alwaysPrepared().contains(s)) continue;
-                boolean signature = level >= 3 && sd.level == 2;
+                boolean signature = (level >= 3 && sd.level == 2 && level < 5) || (level >= 5 && sd.level == 3);
                 if (prepared.size() >= want && !signature) continue;
                 prepared.add(s);
                 added.add(s);
                 if (classId.equals("wizard") && !spellbook.contains(s)) spellbook.add(s);
             }
             // Over the limit? Retire the least essential 1st-level spells (never Shield, Mage Armor or Charm Person).
-            Set<String> keep = Set.of("shield", "mage_armor", "charm_person", "chromatic_orb", "healing_word", "cure_wounds", "bless", "guiding_bolt", "hunters_mark");
+            Set<String> keep = Set.of("shield", "mage_armor", "charm_person", "chromatic_orb", "healing_word", "cure_wounds", "bless", "guiding_bolt", "hunters_mark", "scorching_ray", "misty_step", "spiritual_weapon");
             for (int i = 0; i < prepared.size() && prepared.size() > want; ) {
                 String s = prepared.get(i);
                 Spells.SpellDef sd = Spells.get(s);
@@ -376,6 +398,9 @@ public final class Hero implements Json.JsonAble {
             }
             for (String s : added) gained.add("Spell: " + Spells.get(s).name);
             if (classId.equals("wizard") && level >= 3 && !spellbook.contains("shatter")) spellbook.add("shatter");
+            if (classId.equals("wizard") && level >= 5) for (String x : List.of("fireball", "lightning_bolt")) if (!spellbook.contains(x)) spellbook.add(x);
+            for (String cn : c.defaultCantrips) if (cantrips.stream().filter(x -> { Spells.SpellDef d = Spells.get(x); return d != null && d.lists.contains(c.spellList); }).count() < c.cantripsAt(level) && !cantrips.contains(cn)) { cantrips.add(cn); gained.add("Cantrip: " + Spells.get(cn).name); }
+            for (Spells.SpellDef extra : Spells.forList(c.spellList, 0)) if (cantrips.stream().filter(x -> { Spells.SpellDef d = Spells.get(x); return d != null && d.lists.contains(c.spellList); }).count() < c.cantripsAt(level) && !cantrips.contains(extra.id) && extra.kind != Spells.Kind.UTILITY) { cantrips.add(extra.id); gained.add("Cantrip: " + extra.name); }
         }
         if (classId.equals("bard") && level >= 2) { expertise.add("persuasion"); expertise.add("performance"); skills.add("persuasion"); skills.add("performance"); }
         if (classId.equals("wizard") && level >= 2 && skills.contains("arcana")) expertise.add("arcana");
@@ -597,7 +622,7 @@ public final class Hero implements Json.JsonAble {
         if (Classes.get(h.classId) == null) h.classId = "fighter";
         if (Species.get(h.speciesId) == null) h.speciesId = "human";
         if (Backgrounds.get(h.backgroundId) == null) h.backgroundId = "soldier";
-        h.level = Math.max(1, Math.min(3, Json.integer(m, "level", 1)));
+        h.level = Math.max(1, Math.min(MAX_LEVEL, Json.integer(m, "level", 1)));
         h.xp = Json.integer(m, "xp", 0);
         Map<String, Object> sc = Json.map(m, "finalScores");
         for (Ability a : Ability.values()) h.scores[a.ordinal()] = Math.max(1, Math.min(20, Json.integer(sc, a.key(), 10)));

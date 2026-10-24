@@ -10,7 +10,7 @@ import java.util.*;
  */
 public final class Spells {
     public enum Kind { ATTACK, SAVE, AUTO, HEAL, BUFF, UTILITY }
-    public enum Area { SINGLE, MULTI, CONE, SPHERE, CUBE, SELF }
+    public enum Area { SINGLE, MULTI, CONE, SPHERE, CUBE, SELF, LINE }
     public enum Cast { ACTION, BONUS, REACTION }
 
     public static final class SpellDef implements Json.JsonAble {
@@ -187,5 +187,20 @@ public final class Spells {
                 .desc("Up to three allies' maximum and current HP increase by 5 for 8 hours.");
         def("lesser_restoration", "Lesser Restoration", 2).range(5).utility().allies().school("abjuration").lists("cleric", "bard", "paladin", "ranger")
                 .desc("End one condition (Blinded, Deafened, Paralyzed or Poisoned) on a creature.");
+
+        // ---------------------------------------------------------------- 3rd level
+        def("fireball", "Fireball", 3).range(150).save(Ability.DEX, "8d6", "fire", true).area(Area.SPHERE, 20).up("1d6").elem().lists("wizard", "sorcerer")
+                .desc("A bright streak blossoms into an explosion of flame. Every creature in a 20-ft-radius sphere makes a Dexterity save: 8d6 fire, half on success. +1d6 per slot above 3rd. Mind your friends.");
+        def("lightning_bolt", "Lightning Bolt", 3).range(0).save(Ability.DEX, "8d6", "lightning", true).area(Area.LINE, 100).up("1d6").elem().lists("wizard", "sorcerer")
+                .desc("A stroke of lightning 100 ft long and 5 ft wide blasts out from you. Dexterity save: 8d6 lightning, half on success.");
+        def("spirit_guardians", "Spirit Guardians", 3).range(0).save(Ability.WIS, "3d8", "radiant", true).area(Area.SELF, 15).up("1d8").conc().school("conjuration").lists("cleric")
+                .desc("Protective spirits flit around you in a 15-ft emanation. Enemies that start their turn there (or when you cast it) make a Wisdom save: 3d8 radiant, half on success (Concentration).");
+        def("mass_healing_word", "Mass Healing Word", 3).cast(Cast.BONUS).range(60).heal("2d4").multi(6).up("1d4").school("abjuration").lists("cleric", "bard")
+                .desc("Bonus Action: up to six creatures you can see regain 2d4 + your spellcasting modifier HP.");
+        def("revivify", "Revivify", 3).range(5).utility().allies().school("necromancy").lists("cleric", "paladin")
+                .desc("Touch a creature that has died within the last minute: it returns to life with 1 HP.");
+        def("hypnotic_pattern", "Hypnotic Pattern", 3).range(120).save(Ability.WIS, "", "", false).area(Area.SPHERE, 15).cond("incapacitated", 10).conc().school("illusion").lists("wizard", "bard", "sorcerer")
+                .desc("A twisting pattern of colours in a 30-ft cube: Wisdom save or the creature is Charmed and Incapacitated, mesmerised, until it takes damage (Concentration).");
+
     }
 }

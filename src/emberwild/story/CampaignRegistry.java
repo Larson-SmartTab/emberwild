@@ -279,7 +279,7 @@ public final class CampaignRegistry {
             for (String row : e.map) for (char ch : row.toCharArray()) {
                 String mid = e.legend.get(String.valueOf(ch));
                 if (mid != null) { enemy = true; if (!monsterIds.contains(mid) && !Monsters.exists(mid)) p.add("ERROR " + where + " uses unknown monster '" + mid + "'"); }
-                else if (Character.isLetter(ch) && "PEATLB".indexOf(ch) < 0) p.add("ERROR " + where + " map letter '" + ch + "' has no legend entry (terrain letters are P E A T L B)");
+                else if (Character.isLetter(ch) && "PEATLBGCI".indexOf(ch) < 0) p.add("ERROR " + where + " map letter '" + ch + "' has no legend entry (terrain letters are P E A T L B G C I)");
                 else if (!Character.isLetter(ch) && "#.,~=^ ".indexOf(ch) < 0) p.add("WARN " + where + " map symbol '" + ch + "' is unknown and will be treated as floor");
             }
             if (!enemy && !e.objective.equals("survive")) p.add("WARN " + where + " has no enemies on the map");

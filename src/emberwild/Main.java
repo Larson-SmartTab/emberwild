@@ -24,19 +24,26 @@ import java.util.*;
  * </pre>
  */
 public final class Main {
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "2.0.0";
+    static final List<String> BUILTIN = List.of("emberwild.story.DrownedCrown", "emberwild.story.FrostfellPact", "emberwild.story.WyrmfireDeep");
 
     public static void main(String[] args) throws Exception {
         int port = 7777;
         boolean browser = true;
         int selftest = 0;
+        String selftestCampaign = "emberwild";
+        String[] battletest = null;
         String validate = null;
         Path home = Paths.get(System.getProperty("emberwild.home", ".")).toAbsolutePath().normalize();
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--port" -> port = Integer.parseInt(args[++i]);
                 case "--no-browser", "--headless" -> browser = false;
-                case "--selftest" -> selftest = i + 1 < args.length && args[i + 1].matches("\\d+") ? Integer.parseInt(args[++i]) : 3;
+                case "--selftest" -> {
+                    selftest = i + 1 < args.length && args[i + 1].matches("\\d+") ? Integer.parseInt(args[++i]) : 3;
+                    if (i + 1 < args.length && !args[i + 1].startsWith("--")) selftestCampaign = args[++i];
+                }
+                case "--battletest" -> { List<String> bt = new ArrayList<>(); while (i + 1 < args.length && !args[i + 1].startsWith("--")) bt.add(args[++i]); battletest = bt.toArray(new String[0]); }
                 case "--validate" -> validate = args[++i];
                 case "--home" -> home = Paths.get(args[++i]).toAbsolutePath().normalize();
                 case "--help", "-h" -> { usage(); return; }
@@ -51,6 +58,17 @@ public final class Main {
         registry.register(core);
         List<String> coreProblems = registry.validate(core, false);
         for (String p : coreProblems) if (p.startsWith("ERROR") || p.startsWith("WARN")) System.out.println("  [core] " + p);
+        // Built-in starter campaigns (also shipped as editable source in campaigns/starters/)
+        for (String cls : BUILTIN) {
+            try {
+                Campaign c = ((emberwild.story.CampaignScript) Class.forName(cls).getDeclaredConstructor().newInstance()).build();
+                c.core = true;
+                c.source = "builtin";
+                registry.register(c);
+                for (String p : registry.validate(c, false)) if (p.startsWith("ERROR") || p.startsWith("WARN")) System.out.println("  [" + c.id + "] " + p);
+            } catch (ClassNotFoundException ignored) {
+            } catch (Exception e) { System.err.println("  ! Built-in campaign " + cls + " failed: " + e); }
+        }
 
         if (validate != null) { System.exit(validateFile(registry, Paths.get(validate)) ? 0 : 1); return; }
 
@@ -58,7 +76,14 @@ public final class Main {
         System.out.println("Loading campaigns from " + campaigns + " ...");
         registry.loadFolder();
 
-        if (selftest > 0) { System.exit(emberwild.game.SelfTest.run(registry, saves, selftest) ? 0 : 1); return; }
+        if (battletest != null) {
+            if (battletest.length < 3) { System.out.println("Usage: --battletest CAMPAIGN ENCOUNTER LEVEL [flags|none] [runs] [heroes]"); return; }
+            emberwild.game.SelfTest.battleTest(registry, saves, battletest[0], battletest[1], Integer.parseInt(battletest[2]),
+                    battletest.length > 3 ? battletest[3] : "none", battletest.length > 4 ? Integer.parseInt(battletest[4]) : 10, battletest.length > 5 ? Integer.parseInt(battletest[5]) : 1);
+            System.exit(0);
+            return;
+        }
+        if (selftest > 0) { System.exit(emberwild.game.SelfTest.run(registry, saves, selftest, selftestCampaign) ? 0 : 1); return; }
 
         Game game = new Game(registry, saves);
         WebServer server;
@@ -93,7 +118,8 @@ public final class Main {
                   --no-browser      don't open a browser window
                   --home DIR        where campaigns/ and saves/ live (default: current folder)
                   --validate FILE   validate a campaign .json or .java and exit
-                  --selftest [N]    AI plays the full campaign N times and reports
+                  --selftest [N] [CAMPAIGN]   AI plays a campaign N times and reports
+                  --battletest CAMPAIGN ENCOUNTER LEVEL [flags|none] [runs] [heroes]   balance one fight
                 """.formatted(VERSION));
     }
 

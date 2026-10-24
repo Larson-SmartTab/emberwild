@@ -23,6 +23,17 @@
     hall: { floor: '#4a5a6a', floor2: '#435362', wall: '#232c36', grid: 'rgba(0,0,0,.22)' },
     lair: { floor: '#2a2428', floor2: '#252024', wall: '#121014', grid: 'rgba(0,0,0,.3)' },
     dungeon: { floor: '#3e3a36', floor2: '#383430', wall: '#1d1b19', grid: 'rgba(0,0,0,.25)' },
+    coast: { floor: '#c9b28a', floor2: '#c0a982', wall: '#3a3a40', grid: 'rgba(0,0,0,.15)' },
+    ship: { floor: '#6b4a2c', floor2: '#634427', wall: '#2a1a10', grid: 'rgba(0,0,0,.25)' },
+    snow: { floor: '#e8eef5', floor2: '#dfe6ef', wall: '#5a6676', grid: 'rgba(0,0,40,.12)' },
+    crypt: { floor: '#3a3a42', floor2: '#34343c', wall: '#18181e', grid: 'rgba(0,0,0,.3)' },
+    mine: { floor: '#4a3c2e', floor2: '#433628', wall: '#1e1812', grid: 'rgba(0,0,0,.25)' },
+    seacave: { floor: '#2e4a4a', floor2: '#294343', wall: '#0f1c1e', grid: 'rgba(0,0,0,.3)' },
+    hoard: { floor: '#5a4620', floor2: '#523f1c', wall: '#1c1816', grid: 'rgba(0,0,0,.25)' },
+    town: { floor: '#7a6a52', floor2: '#72624b', wall: '#3a2a20', grid: 'rgba(0,0,0,.18)' },
+    road: { floor: '#5a6a3a', floor2: '#536236', wall: '#2d2d2d', grid: 'rgba(0,0,0,.18)' },
+    grove: { floor: '#3c5a32', floor2: '#36522d', wall: '#2d2d2d', grid: 'rgba(0,0,0,.18)' },
+    village: { floor: '#4a443c', floor2: '#433d36', wall: '#1d1a18', grid: 'rgba(0,0,0,.22)' },
   };
 
   function rng(seed) { let a = seed; return () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; }; }

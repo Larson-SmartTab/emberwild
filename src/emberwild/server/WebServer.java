@@ -24,6 +24,7 @@ public final class WebServer {
     private final CampaignRegistry registry;
     private final HttpServer http;
     public final int port;
+    public Tts tts;
 
     public WebServer(Game game, CampaignRegistry registry, int port) throws IOException {
         this.game = game;
@@ -61,11 +62,29 @@ public final class WebServer {
         }
     }
 
-    private Object route(HttpExchange ex, String path, String pid, Map<String, Object> b) throws IOException {
+    private Object route(HttpExchange ex, String path, String pid, Map<String, Object> b) throws Exception {
         boolean local = isLocal(ex);
         switch (path) {
             case "/api/state": return rawJson(ex, game.stateJson());
-            case "/api/info": return Json.obj("urls", urls(), "port", port, "local", local, "version", emberwild.Main.VERSION);
+            case "/api/info": return Json.obj("urls", urls(), "port", port, "local", local, "version", emberwild.Main.VERSION,
+                    "tts", tts != null && tts.available(), "ttsVoices", tts == null ? List.of() : tts.voices(), "dm", game.dm.describe());
+            case "/api/say": return err(game.say(pid, Json.str(b, "hero", ""), Json.str(b, "text", ""), Json.str(b, "kind", "say")));
+            case "/api/ai": { if (!game.isHost(pid)) return deny(); return game.dm.describe(); }
+            case "/api/ai/config": {
+                if (!game.isHost(pid) || !local) return Json.obj("ok", false, "error", "Only the host, on the machine running Emberwild, can configure the AI Dungeon Master.");
+                game.dm.configure(Json.str(b, "provider", "rules"), Json.str(b, "url", ""), Json.str(b, "model", ""), Json.str(b, "apiKey", ""));
+                game.changed();
+                return Json.obj("ok", true, "dm", game.dm.describe());
+            }
+            case "/api/ai/test": { if (!game.isHost(pid)) return deny(); return Json.obj("ok", true, "message", game.dm.test()); }
+            case "/api/tts": {
+                if (tts == null || !tts.available()) { text(ex, 404, "Neural voices are not set up on this server"); return null; }
+                Map<String, String> q = query(ex);
+                byte[] wav = tts.speak(q.get("voice"), q.getOrDefault("text", ""), parseD(q.get("rate"), 1.0), (int) parseD(q.get("speaker"), -1));
+                ex.getResponseHeaders().set("Cache-Control", "max-age=86400");
+                send(ex, 200, "audio/wav", wav);
+                return null;
+            }
             case "/api/join": {
                 Game.Player p = game.join(Json.str(b, "id", null), Json.str(b, "name", null), local);
                 return Json.obj("ok", true, "id", p.id, "name", p.name, "host", p.host, "color", p.color);
@@ -195,6 +214,8 @@ public final class WebServer {
     }
 
     // ------------------------------------------------------------------------------------------ helpers
+    private static double parseD(String s, double d) { try { return s == null ? d : Double.parseDouble(s); } catch (Exception e) { return d; } }
+
     private static Map<String, Object> err(String e) { return e == null ? Json.obj("ok", true) : Json.obj("ok", false, "error", e); }
     private static Map<String, Object> deny() { return Json.obj("ok", false, "error", "Only the host can do that."); }
 
@@ -246,7 +267,7 @@ public final class WebServer {
 
     private static void send(HttpExchange ex, int code, String type, byte[] body) throws IOException {
         ex.getResponseHeaders().set("Content-Type", type);
-        ex.getResponseHeaders().set("Cache-Control", "no-store");
+        if (!ex.getResponseHeaders().containsKey("Cache-Control")) ex.getResponseHeaders().set("Cache-Control", "no-store");
         ex.sendResponseHeaders(code, body.length == 0 ? -1 : body.length);
         if (body.length > 0) try (OutputStream os = ex.getResponseBody()) { os.write(body); }
         else ex.close();

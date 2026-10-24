@@ -33,6 +33,7 @@ public final class Main {
         int selftest = 0;
         String selftestCampaign = "emberwild";
         String[] battletest = null;
+        String piper = null, voices = null, aiProvider = null, aiModel = null, aiUrl = null;
         String validate = null;
         Path home = Paths.get(System.getProperty("emberwild.home", ".")).toAbsolutePath().normalize();
         for (int i = 0; i < args.length; i++) {
@@ -45,6 +46,11 @@ public final class Main {
                 }
                 case "--battletest" -> { List<String> bt = new ArrayList<>(); while (i + 1 < args.length && !args[i + 1].startsWith("--")) bt.add(args[++i]); battletest = bt.toArray(new String[0]); }
                 case "--validate" -> validate = args[++i];
+                case "--piper" -> piper = args[++i];
+                case "--voices" -> voices = args[++i];
+                case "--ai" -> aiProvider = args[++i];
+                case "--ai-model" -> aiModel = args[++i];
+                case "--ai-url" -> aiUrl = args[++i];
                 case "--home" -> home = Paths.get(args[++i]).toAbsolutePath().normalize();
                 case "--help", "-h" -> { usage(); return; }
                 default -> { System.err.println("Unknown option " + args[i]); usage(); return; }
@@ -93,6 +99,8 @@ public final class Main {
             System.err.println("\nPort " + port + " is already in use. Is Emberwild already running? Try: --port " + (port + 1));
             return;
         }
+        server.tts = new emberwild.server.Tts(home, piper, voices);
+        if (aiProvider != null) game.dm.configure(aiProvider, aiUrl, aiModel, null);
         server.start();
         System.out.println();
         System.out.println("  +--------------------------------------------------------------+");
@@ -103,6 +111,8 @@ public final class Main {
         for (int i = 1; i < urls.size(); i++) System.out.println("  Friends on LAN:  " + urls.get(i));
         System.out.println("  Over the internet: share your port " + port + " (port-forward), or use a tunnel such as");
         System.out.println("                     tailscale / ngrok http " + port + " / cloudflared tunnel --url http://localhost:" + port);
+        System.out.println("  Dungeon Master:    " + game.dm.describe().get("label") + "   (change in the menu, or --ai ollama|openai|anthropic)");
+        System.out.println("  Neural voices:     " + (server.tts.available() ? "Piper with " + server.tts.voices().size() + " voice(s)" : "browser voices (add Piper for studio-quality voices - see README)"));
         System.out.println("  Campaigns folder:  " + campaigns);
         System.out.println("  Saves folder:      " + saves);
         System.out.println("  Press Ctrl+C to stop.\n");
@@ -118,6 +128,9 @@ public final class Main {
                   --no-browser      don't open a browser window
                   --home DIR        where campaigns/ and saves/ live (default: current folder)
                   --validate FILE   validate a campaign .json or .java and exit
+                  --ai PROVIDER     AI Dungeon Master: rules (default), ollama, openai, anthropic
+                  --ai-model NAME   model name (e.g. gemma3, llama3.2); --ai-url URL for a custom endpoint
+                  --piper PATH      Piper executable for neural voices; --voices DIR folder of .onnx voices
                   --selftest [N] [CAMPAIGN]   AI plays a campaign N times and reports
                   --battletest CAMPAIGN ENCOUNTER LEVEL [flags|none] [runs] [heroes]   balance one fight
                 """.formatted(VERSION));

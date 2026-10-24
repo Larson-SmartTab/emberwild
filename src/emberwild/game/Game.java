@@ -1,6 +1,7 @@
 package emberwild.game;
 
 import emberwild.rules.*;
+import emberwild.rules.Skill;
 import emberwild.story.Campaign;
 import emberwild.story.CampaignRegistry;
 import emberwild.util.Json;
@@ -73,9 +74,19 @@ public final class Game {
         String actorHero;
     }
 
+    public final DungeonMaster dm;
+    final LinkedList<String> dialog = new LinkedList<>();
+    boolean dmBusy = false;
+    PendingRoll roleplay;
+    String roleplaySkill = "";
+    int roleplayDc = 0;
+    Map<String, Object> roleplayCtx;
+    final Set<String> roleplayRewards = new HashSet<>();
+
     public Game(CampaignRegistry registry, Path saveDir) {
         this.registry = registry;
         this.saveDir = saveDir;
+        this.dm = new DungeonMaster(saveDir == null ? null : saveDir.toAbsolutePath().getParent().resolve("emberwild-settings.json"));
         exec.scheduleAtFixedRate(this::flush, 200, 90, TimeUnit.MILLISECONDS);
         exec.scheduleAtFixedRate(this::tickTimeouts, 1, 1, TimeUnit.SECONDS);
     }
@@ -632,7 +643,7 @@ public final class Game {
         int guidance = 0;
         if (check != null && !check.choice.check.startsWith("save:") && heroes.stream().anyMatch(x -> x.canCast("guidance") && !x.dead)) guidance = Dice.die(4);
         Dice.Roll r = Dice.d20(target.bonus + guidance, target.adv, false, h != null && h.hasTrait("lucky"));
-        if (h != null && h.inspiration && check != null && r.total < check.choice.dc && r.natural != 20) {
+        if (h != null && h.inspiration && check != null && r.total < check.choice.dc && r.natural != 20 && target != roleplay) {
             // Heroic Inspiration: reroll a failure
             h.inspiration = false;
             Dice.Roll r2 = Dice.d20(target.bonus + guidance, target.adv, false, h.hasTrait("lucky"));
@@ -641,7 +652,7 @@ public final class Game {
         }
         target.result = r;
         rollFx(r, target.label + (guidance > 0 ? " (+" + guidance + " Guidance)" : ""), target.playerId, false);
-        if (pending.stream().allMatch(p -> p.result != null)) schedule(this::finishCheck, 1900);
+        if (pending.stream().allMatch(p -> p.result != null)) schedule(check != null ? this::finishCheck : this::finishRoleplay, 1900);
         changed();
         return null;
     }
@@ -928,6 +939,118 @@ public final class Game {
         return null;
     }
 
+    // ===================================================================================== in-character dialogue
+    /**
+     * A player speaks (kind "say") or acts (kind "do") in character. Everyone hears it in that hero's voice; then the
+     * Dungeon Master improvises a reaction (NPC line + narration) and may call for a roleplay check.
+     */
+    public synchronized String say(String pid, String heroId, String text, String kind) {
+        Player p = players.get(pid);
+        if (p == null) return "Join first.";
+        if (text == null || text.isBlank()) return "Say something!";
+        text = text.trim();
+        if (text.length() > 300) text = text.substring(0, 300);
+        Hero h = hero(heroId);
+        if (h == null) for (Hero x : heroes) if (x.player.equals(pid) && !x.npc) { h = x; break; }
+        if (h == null || (!h.player.equals(pid) && !isHost(pid))) return "Speak as one of your own heroes.";
+        if (!kind.equals("do")) kind = "say";
+        String shown = kind.equals("say") ? h.name + ": “" + text + "”" : h.name + " " + text;
+        Map<String, Object> e = Json.obj("text", shown, "style", kind.equals("say") ? "speech" : "deed", "who", h.name, "color", h.color, "ts", System.currentTimeMillis());
+        log.add(e); while (log.size() > 400) log.removeFirst();
+        outbox.add(Json.obj("t", "log", "entry", e));
+        fx(Json.obj("t", "speech", "hero", h.id, "name", h.name, "text", text, "kind", kind, "voice", "hero:" + h.id, "pronouns", h.pronouns, "species", h.speciesId, "color", h.color));
+        dialog.add(h.name + (kind.equals("say") ? ": \"" + text + "\"" : " " + text));
+        while (dialog.size() > 8) dialog.removeFirst();
+        if (dmBusy) { changed(); return null; }
+        // context for the DM
+        Campaign c = registry.get(sceneCampaign);
+        Campaign.Scene sc = scene();
+        String npc = sc != null && sc.npc != null ? Json.str(sc.npc, "name", "") : "";
+        Map<String, Object> ctx = Json.obj("campaign", c == null ? "" : c.title, "scene", sc == null ? "" : sc.title, "sceneText", sc == null ? "" : sc.text,
+                "npc", phase.equals("combat") ? "" : npc, "npcTitle", sc != null && sc.npc != null ? Json.str(sc.npc, "title", "") : "",
+                "party", names(heroes), "recent", String.join("\n", dialog), "hero", h.name,
+                "heroDesc", h.species().name + " " + h.classDef().name + ", " + h.pronouns, "text", text, "kind", kind, "heroId", h.id,
+                "npcColor", sc != null && sc.npc != null ? Json.str(sc.npc, "color", "#888") : "#888", "inCombat", phase.equals("combat"));
+        dmBusy = true;
+        fx(Json.obj("t", "dmThinking", "on", true));
+        changed();
+        Thread.ofVirtual().start(() -> {
+            DungeonMaster.Reply r;
+            try { r = dm.respond(ctx); } catch (Exception ex) { r = dm.rules(ctx); }
+            dmReply(ctx, r);
+        });
+        return null;
+    }
+
+    synchronized void dmReply(Map<String, Object> ctx, DungeonMaster.Reply r) {
+        dmBusy = false;
+        fx(Json.obj("t", "dmThinking", "on", false));
+        String npc = r.npc() == null || r.npc().isBlank() ? Json.str(ctx, "npc", "") : r.npc();
+        if (r.npcLine() != null && !r.npcLine().isBlank()) {
+            String line = r.npcLine().replaceAll("^[\"“]|[\"”]$", "");
+            String who = npc.isBlank() ? "A voice" : npc;
+            Map<String, Object> e = Json.obj("text", who + ": “" + line + "”", "style", "npcspeech", "who", who, "color", Json.str(ctx, "npcColor", "#888"), "ts", System.currentTimeMillis());
+            log.add(e); outbox.add(Json.obj("t", "log", "entry", e));
+            fx(Json.obj("t", "speech", "npc", who, "name", who, "text", line, "kind", "say", "voice", "npc:" + who, "color", Json.str(ctx, "npcColor", "#888")));
+            dialog.add(who + ": \"" + line + "\"");
+        }
+        if (r.narration() != null && !r.narration().isBlank()) {
+            log(r.narration(), "narration");
+            fx(Json.obj("t", "narrate", "text", r.narration()));
+        }
+        boolean canCheck = !r.skill().isEmpty() && r.dc() > 0 && phase.equals("story") && pending.isEmpty() && check == null && !Json.bool(ctx, "inCombat", false);
+        if (canCheck) {
+            Hero h = hero(Json.str(ctx, "heroId", ""));
+            Skill sk = Skill.of(r.skill());
+            if (h != null && sk != null) {
+                PendingRoll p = new PendingRoll();
+                p.heroId = h.id; p.playerId = h.player; p.bonus = h.skillBonus(sk);
+                p.label = h.name + " — Roleplay: " + sk.label + " (DC " + r.dc() + ")";
+                p.deadline = System.currentTimeMillis() + 45000;
+                p.choiceKey = "roleplay";
+                pending.add(p);
+                roleplay = p; roleplaySkill = sk.label; roleplayDc = r.dc(); roleplayCtx = ctx;
+                log("🎭 The DM calls for a " + sk.label + " check (DC " + r.dc() + ")!", "check");
+                if (shouldAutoPlay(h)) roll(p.playerId, p.heroId, true);
+            }
+        }
+        changed();
+    }
+
+    void finishRoleplay() {
+        Map<String, Object> ctx;
+        boolean success;
+        Hero h;
+        synchronized (this) {
+            if (roleplay == null || roleplay.result == null) { pending.clear(); roleplay = null; changed(); return; }
+            success = roleplay.result.total >= roleplayDc || roleplay.result.natural == 20;
+            h = hero(roleplay.heroId);
+            ctx = new LinkedHashMap<>(roleplayCtx);
+            ctx.put("skillLabel", roleplaySkill);
+            pending.clear();
+            roleplay = null;
+            fx(Json.obj("t", "checkResult", "success", success));
+            String key = sceneCampaign + ":" + sceneId + ":" + (h == null ? "" : h.id);
+            if (success && h != null && !h.inspiration && roleplayRewards.add(key)) {
+                h.inspiration = true;
+                log("✨ Great roleplay! " + h.name + " gains Heroic Inspiration.", "good");
+            }
+            dmBusy = true;
+            changed();
+        }
+        Thread.ofVirtual().start(() -> {
+            String t;
+            try { t = dm.outcome(ctx, success); } catch (Exception e) { t = success ? "It works!" : "It doesn't quite work."; }
+            synchronized (this) {
+                dmBusy = false;
+                outcome = Json.obj("text", t, "success", success);
+                log(t, success ? "pass" : "fail");
+                fx(Json.obj("t", "narrate", "text", t));
+                changed();
+            }
+        });
+    }
+
     // ===================================================================================== chat & free dice
     public synchronized void chat(String pid, String text) {
         Player p = players.get(pid);
@@ -1079,7 +1202,7 @@ public final class Game {
                 "voteSeconds", voteDeadline == 0 ? 0 : Math.max(0, (voteDeadline - System.currentTimeMillis()) / 1000),
                 "combat", combat == null ? null : combat.view(null), "stock", stock, "campaigns", camps, "log", tail,
                 "stats", Json.obj("battlesWon", battlesWon, "battlesLost", battlesLost, "minutes", startedAt == 0 ? 0 : (System.currentTimeMillis() - startedAt) / 60000),
-                "flagCount", flags.size());
+                "flagCount", flags.size(), "dm", dm.describe(), "dmBusy", dmBusy);
     }
 
     public synchronized String stateJson() { return Json.write(Json.obj("v", version, "fx", List.of(), "state", state())); }

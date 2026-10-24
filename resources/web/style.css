@@ -393,3 +393,27 @@ pre.code { background: #0e1019; border: 1px solid var(--line); border-radius: va
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ------------------------------------------------------------- dialogue */
+.talk { width: min(720px, 100%); margin-top: 18px; background: #1b1e30ee; border: 1px solid #4a3f6e; border-radius: var(--radius-m); padding: 10px 12px; }
+.talk-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.talk-title { font-family: var(--serif); font-size: 1.1rem; }
+.talk-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.talk-row input { flex: 1; min-width: 180px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-s); overflow: hidden; }
+.seg button { background: transparent; border: 0; padding: .45em .7em; cursor: pointer; color: var(--bone-dim); }
+.seg button.on { background: #3a2f5a; color: var(--bone); }
+#talkMic.listening { background: var(--oxblood); border-color: var(--oxblood); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .6; } }
+.dm-thinking { margin-top: 6px; color: #cfc4ff; font-style: italic; font-size: .9rem; }
+.dialogue { margin-top: 14px; width: min(720px, 100%); display: grid; gap: 6px; }
+.dl { display: flex; gap: 10px; align-items: flex-start; }
+.dl .who { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: .8rem; color: #14141e; }
+.dl .said { background: #f4ead2; color: #2b2118; border-radius: 12px; padding: 8px 12px; font-family: var(--serif); font-size: 1.05rem; line-height: 1.4; position: relative; max-width: 100%; }
+.dl.dl-npc .said { background: #2a2140; color: var(--bone); border: 1px solid #5a4a8a; }
+.dl.dl-deed .said { background: transparent; color: var(--bone); font-style: italic; border: 1px dashed var(--line); }
+.dl .said b { display: block; font-family: var(--sans); font-size: .78rem; opacity: .7; }
+.le.l-speech { color: #f4ead2; font-family: var(--serif); }
+.le.l-npcspeech { color: #d9c9ff; font-family: var(--serif); }
+.le.l-deed { color: var(--bone-dim); font-style: italic; }
+#chatMode { padding: .3em; font-size: .85rem; }

@@ -67,9 +67,23 @@
           <div id="outcome" class="outcome hidden"></div>
         </article>
         <div id="rollPrompt" class="roll-prompt hidden"></div>
+        <div id="dialogue" class="dialogue hidden"></div>
         <ol id="choices" class="choices"></ol>
         <div id="voteInfo" class="vote-info"></div>
         <div id="shop" class="shop hidden"></div>
+        <form id="talk" class="talk" autocomplete="off">
+          <div class="talk-head"><span class="talk-title">Speak in character</span><span id="dmLabel" class="hint"></span></div>
+          <div class="talk-row">
+            <select id="talkHero" aria-label="Who is speaking"></select>
+            <div class="seg" role="radiogroup" aria-label="Say or do">
+              <button type="button" class="on" data-kind="say" title="Your hero says it out loud">💬 Say</button><button type="button" data-kind="do" title="Describe what your hero does">✋ Do</button>
+            </div>
+            <input id="talkInput" maxlength="300" placeholder="“Mira, love — what's the strangest thing you've heard tonight?”">
+            <button type="button" id="talkMic" class="btn" title="Speak into your microphone">🎤</button>
+            <button class="btn primary" id="talkSend">Speak</button>
+          </div>
+          <div id="dmThinking" class="dm-thinking hidden">The Dungeon Master is thinking…</div>
+        </form>
       </div>
       <div id="battle" class="battle hidden">
         <div class="battle-head">
@@ -85,7 +99,10 @@
     </div>
     <aside id="logPanel" class="side log">
       <div id="log" class="log-list" aria-live="polite"></div>
-      <form id="chatForm" class="chat"><input id="chatInput" placeholder="Talk, or /roll 2d6+3" autocomplete="off" maxlength="400"><button class="btn small">Send</button></form>
+      <form id="chatForm" class="chat">
+        <select id="chatMode" aria-label="Chat mode" title="Table talk, or speak in character"><option value="ooc">Table</option><option value="say">In character</option></select>
+        <input id="chatInput" placeholder="Talk, or /roll 2d6+3" autocomplete="off" maxlength="400"><button class="btn small">Send</button>
+      </form>
     </aside>
   </section>
 </main>
@@ -104,8 +121,10 @@
 
 <script src="/static/util.js"></script>
 <script src="/static/audio.js"></script>
+<script src="/static/voice.js"></script>
 <script src="/static/scene.js"></script>
 <script src="/static/dice3d.js"></script>
+<script src="/static/figures.js"></script>
 <script src="/static/battle.js"></script>
 <script src="/static/builder.js"></script>
 <script src="/static/forge.js"></script>

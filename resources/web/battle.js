@@ -92,6 +92,13 @@
           c.beginPath(); c.moveTo(px + cell * .12, py + cell * .5); c.lineTo(px + cell * .86, py + cell * .5); c.stroke();
           break;
         }
+        case 'C': {
+          c.fillStyle = '#05050a'; c.fillRect(px, py, cell, cell);
+          const g = c.createRadialGradient(px + cell / 2, py + cell / 2, 1, px + cell / 2, py + cell / 2, cell * .7); g.addColorStop(0, '#000'); g.addColorStop(1, 'rgba(40,30,50,.6)');
+          c.fillStyle = g; c.fillRect(px, py, cell, cell);
+          break;
+        }
+        case 'I': { c.fillStyle = 'rgba(190,230,255,.55)'; c.fillRect(px, py, cell, cell); c.strokeStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.moveTo(px + cell * .2, py + cell * .3); c.lineTo(px + cell * .7, py + cell * .6); c.stroke(); break; }
         case '^': { c.fillStyle = '#b8b0a0'; for (let k = 0; k < 3; k++) { c.beginPath(); const sx = px + cell * (.25 + k * .25); c.moveTo(sx - cell * .08, py + cell * .7); c.lineTo(sx, py + cell * .3); c.lineTo(sx + cell * .08, py + cell * .7); c.fill(); } break; }
       }
       if (t !== '#') { c.strokeStyle = th.grid; c.lineWidth = 1; c.strokeRect(px + .5, py + .5, cell - 1, cell - 1); }
@@ -131,8 +138,13 @@
     for (let y = y0; y < y0 + len; y++) for (let x = x0; x < x0 + len; x++) if (x >= 0 && y >= 0 && x < view.w && y < view.h && view.tiles[y][x] !== '#') out.push([x, y]);
     return out;
   }
+  function lineCells(u, tx, ty, len) {
+    const out = [], ox = u.x + (u.size - 1) / 2, oy = u.y + (u.size - 1) / 2, ang = Math.atan2(ty - oy, tx - ox);
+    for (let i = 1; i <= len; i++) { const x = Math.round(ox + Math.cos(ang) * i), y = Math.round(oy + Math.sin(ang) * i); if (x < 0 || y < 0 || x >= view.w || y >= view.h || view.tiles[y][x] === '#') break; out.push([x, y]); }
+    return out;
+  }
   const gap = (a, b) => Math.max(Math.max(0, Math.max(a.x - (b.x + (b.size || 1) - 1), b.x - (a.x + (a.size || 1) - 1))), Math.max(0, Math.max(a.y - (b.y + (b.size || 1) - 1), b.y - (a.y + (a.size || 1) - 1))));
-  const unitAt = (x, y) => view.units.find(u => !u.gone && !u.dead && x >= u.x && x < u.x + u.size && y >= u.y && y < u.y + u.size);
+  const unitAt = (x, y, dead) => view.units.find(u => !u.gone && (dead || !u.dead) && x >= u.x && x < u.x + u.size && y >= u.y && y < u.y + u.size);
   const byId = id => view.units.find(u => u.id === id);
 
   // ---------------------------------------------------------------- state
@@ -161,7 +173,7 @@
     renderBar();
   };
 
-  B.reset = function () { view = null; pos = {}; anims = {}; portraits = {}; mode = null; };
+  B.reset = function () { view = null; pos = {}; anims = {}; portraits = {}; mode = null; for (const k in poseState) delete poseState[k]; bubbles.length = 0; };
 
   function renderInitiative() {
     const el = document.getElementById('initiative');
@@ -212,13 +224,16 @@
         for (const e of ['fire', 'cold', 'lightning', 'acid', 'thunder', 'poison']) els.append(EW.h('button.act' + (mode.element === e ? '.sel' : ''), { onclick: () => { mode.element = e; renderBar(); }, style: { color: DTYPE[e] } }, e));
         r.append(els);
       }
+      if (mode.kind === 'shove') for (const [m, l] of [['push', 'Push 5 ft'], ['prone', 'Knock prone']]) r.append(EW.h('button.act' + (mode.shoveMode === m ? '.sel' : ''), { onclick: () => { mode.shoveMode = m; renderBar(); } }, l));
       r.append(EW.h('button.act', { onclick: () => { mode = null; renderBar(); } }, 'Cancel (Esc)'));
       bar.append(r);
     }
     // actions
     const w = op.weapon || {};
     const a1 = EW.h('div.ab-row', EW.h('span.lab', 'Action'));
-    a1.append(EW.h('button.act' + (mode && mode.kind === 'attack' ? '.sel' : ''), { disabled: !ti.action, onclick: () => setMode({ kind: 'attack', filter: 'enemy', prompt: `Click an enemy to attack with ${w.name} (${EW.sign(w.toHit)} to hit, ${w.damage}).` }), title: `${w.name}: ${EW.sign(w.toHit)} to hit, ${w.damage}${w.mastery ? ', mastery: ' + w.mastery : ''}` }, `⚔ ${w.name} ${EW.sign(w.toHit || 0)}`));
+    const canAttack = ti.action || ti.attacksLeft > 0;
+    a1.append(EW.h('button.act' + (mode && mode.kind === 'attack' ? '.sel' : ''), { disabled: !canAttack, onclick: () => setMode({ kind: 'attack', filter: 'enemy', prompt: `Click an enemy to attack with ${w.name} (${EW.sign(w.toHit)} to hit, ${w.damage}).` }), title: `${w.name}: ${EW.sign(w.toHit)} to hit, ${w.damage}${w.mastery ? ', mastery: ' + w.mastery : ''}` }, `⚔ ${w.name} ${EW.sign(w.toHit || 0)}${ti.attacksLeft > 0 ? ' (extra attack!)' : ''}`));
+    a1.append(EW.h('button.act' + (mode && mode.kind === 'shove' ? '.sel' : ''), { disabled: !canAttack, title: 'Shove an adjacent enemy 5 ft (into a chasm, lava or acid?) or knock it Prone. Uses one attack.', onclick: () => setMode({ kind: 'shove', filter: 'enemy', shoveMode: 'push', prompt: 'Click an adjacent enemy to shove it.' }) }, '✋ Shove'));
     for (const [t, l, tt] of [['dash', '🏃 Dash', 'Double your movement'], ['disengage', '↩ Disengage', 'Move without provoking opportunity attacks'], ['dodge', '🌀 Dodge', 'Attacks against you have Disadvantage'], ['hide', '🌑 Hide', 'Stealth check to become hidden']])
       a1.append(EW.h('button.act', { disabled: !ti.action, title: tt, onclick: () => act(t) }, l));
     a1.append(EW.h('button.act', { disabled: !ti.action, title: 'Give an ally Advantage against an adjacent enemy, or stabilize/wake an ally', onclick: () => setMode({ kind: 'help', filter: 'any', prompt: 'Click an enemy next to you, or a dying / sleeping ally.' }) }, '🤝 Help'));
@@ -261,6 +276,8 @@
     if (s.id === 'misty_step') return setMode({ ...base, kind: 'point', shape: 'tele', range: 30, prompt: 'Click an empty square within 30 ft to teleport.' });
     if (s.area === 'cone') return setMode({ ...base, kind: 'point', shape: 'cone', size: s.areaSize / 5, prompt: `Aim the ${s.areaSize}-ft cone — careful, it hits allies too.` });
     if (s.area === 'cube') return setMode({ ...base, kind: 'point', shape: 'cube', size: s.areaSize / 5, prompt: `Choose a direction for the ${s.areaSize}-ft cube.` });
+    if (s.area === 'line') return setMode({ ...base, kind: 'point', shape: 'line', size: s.areaSize / 5, prompt: `Aim the ${s.areaSize}-ft line — it hits everything in its path.` });
+    if (s.area === 'self') return setMode({ ...base, kind: 'point', shape: 'self', size: s.areaSize / 5, prompt: `Click anywhere to unleash ${s.name} around yourself.` });
     if (s.area === 'sphere') return setMode({ ...base, kind: 'point', shape: 'sphere', size: s.areaSize / 5, range: s.range, prompt: `Pick a point within ${s.range} ft (${s.areaSize}-ft radius).` });
     const extra = Math.max(0, level - s.level) * (s.upTargets || 0);
     const max = s.targets + extra;
@@ -321,7 +338,7 @@
     if (!view || !B.myTurn()) return;
     const c = cellFrom(ev); if (!c) return;
     const me = B.current();
-    const u = unitAt(c.x, c.y);
+    const u = unitAt(c.x, c.y, mode && mode.spell && mode.spell.id === 'revivify');
     if (mode) {
       if (mode.kind === 'point') {
         if (mode.feature) act('feature', { id: mode.feature.id, x: c.x, y: c.y });
@@ -334,6 +351,7 @@
       if (mode.filter === 'ally' && !isAlly) return EW.toast('Choose an ally.');
       if (mode.kind === 'attack') { act('attack', { target: u.id }); mode = null; }
       else if (mode.kind === 'help') { act('help', { target: u.id }); mode = null; }
+      else if (mode.kind === 'shove') { act('shove', { target: u.id, mode: mode.shoveMode }); mode = null; }
       else if (mode.kind === 'feature') { act('feature', { id: mode.feature.id, target: u.id }); mode = null; }
       else if (mode.kind === 'item') { act('item', { item: mode.item.id, target: u.id }); mode = null; }
       else if (mode.kind === 'unit') {
@@ -343,7 +361,7 @@
       renderBar(); return;
     }
     // default: click enemy = attack, click reachable square = move
-    if (u && u.side !== me.side && view.turnInfo.action) { act('attack', { target: u.id }); return; }
+    if (u && u.side !== me.side && (view.turnInfo.action || view.turnInfo.attacksLeft > 0)) { act('attack', { target: u.id }); return; }
     if (view.reach && view.reach[c.x + ',' + c.y] != null) act('move', { x: c.x, y: c.y });
   });
 
@@ -367,6 +385,9 @@
       case 'teleport': effects.push({ k: 'mist', at: e.from, t0: now, dur: 600 }); effects.push({ k: 'mist', at: e.to, t0: now + 200, dur: 600 }); pos[e.id] = { x: e.to[0], y: e.to[1] }; anims[e.id] = []; EW.audio.sfx('cold'); return 350;
       case 'attack': {
         const a = byId(e.from), b = byId(e.to); if (!a || !b) return 0;
+        const sa = ps(e.from); sa.swing = now; sa.target = e.to;
+        const dx = b.x - a.x, dy = b.y - a.y, dl = Math.hypot(dx, dy) || 1; sa.dir = e.kind === 'melee' ? [dx / dl, dy / dl] : [0, 0];
+        if (e.hit) setTimeout(() => { ps(e.to).hurt = performance.now(); }, e.kind === 'melee' ? 150 : 280);
         const col = DTYPE[e.dtype] || (e.kind === 'melee' ? '#fff3d0' : '#e8d8b0');
         effects.push({ k: e.kind === 'melee' ? 'slash' : 'shot', from: e.from, to: e.to, col, hit: e.hit, t0: now, dur: e.kind === 'melee' ? 260 : 330 });
         EW.audio.sfx(e.hit ? 'hit' : 'miss');
@@ -374,16 +395,21 @@
       }
       case 'spell': {
         const col = DTYPE[e.dtype] || '#c9a2ff';
+        { const sc = ps(e.from); sc.cast = now; sc.dir = [0, 0]; if (e.to && e.to !== e.from) sc.target = e.to; if (e.hit !== false && e.to !== e.from) setTimeout(() => { ps(e.to).hurt = performance.now(); }, 380); }
         const kind = e.spell === 'ray_of_frost' || e.spell === 'scorching_ray' ? 'beam' : e.spell === 'shocking_grasp' ? 'bolt' : e.from === e.to ? 'burst' : 'orb';
         effects.push({ k: kind, from: e.from, to: e.to, col, hit: e.hit !== false, t0: now + (e.i || 0) * 90, dur: 420 });
         EW.audio.sfx(e.dtype === 'cold' ? 'cold' : e.dtype === 'lightning' ? 'lightning' : e.dtype === 'fire' ? 'fire' : 'heal');
         return 260;
       }
-      case 'area': effects.push({ k: 'area', cells: e.cells, col: DTYPE[e.dtype] || '#ff9a4a', t0: now, dur: 700, from: e.from, name: e.name }); EW.audio.sfx(e.dtype === 'cold' ? 'cold' : e.dtype === 'thunder' ? 'lightning' : 'fire'); return 450;
+      case 'area': { const sc = ps(e.from); sc.cast = now; sc.dir = [0, 0]; }
+        effects.push({ k: 'area', cells: e.cells, col: DTYPE[e.dtype] || '#ff9a4a', t0: now, dur: 700, from: e.from, name: e.name }); EW.audio.sfx(e.dtype === 'cold' ? 'cold' : e.dtype === 'thunder' ? 'lightning' : 'fire'); return 450;
       case 'dmg': { const u = byId(e.id); if (u) floaters.push({ id: e.id, text: e.amount === 0 && e.note ? e.note : '-' + e.amount + (e.note === 'VULNERABLE' ? '!!' : ''), col: e.note === 'IMMUNE' ? '#bbb' : DTYPE[e.dtype] && !['piercing', 'slashing', 'bludgeoning'].includes(e.dtype) ? DTYPE[e.dtype] : '#ff6b6b', t0: now, big: e.crit || e.note === 'VULNERABLE' }); effects.push({ k: 'shake', id: e.id, t0: now, dur: 250 }); return 60; }
       case 'heal': { if (e.amount > 0) { floaters.push({ id: e.id, text: '+' + e.amount, col: '#7dffb0', t0: now }); EW.audio.sfx('heal'); } return 60; }
       case 'shield': effects.push({ k: 'shield', id: e.id, t0: now, dur: 900 }); EW.audio.sfx('cold'); return 200;
       case 'death': effects.push({ k: 'death', id: e.id, t0: now, dur: 700 }); return 150;
+      case 'speech': { const u = e.hero ? view.units.find(x => x.heroId === e.hero) : null; if (u) bubbles.push({ id: u.id, text: (e.kind === 'do' ? '*' + e.text + '*' : e.text).slice(0, 90), side: 'party', t0: now }); return 0; }
+      case 'say': bubbles.push({ id: e.id, text: e.text, side: e.side, boss: e.boss, t0: now }); if (EW.voice) EW.voice.bark(e); return 250;
+      case 'fall': effects.push({ k: 'death', id: e.id, t0: now, dur: 700 }); return 300;
       case 'down': floaters.push({ id: e.id, text: 'DOWN', col: '#ff6b6b', t0: now, big: true }); return 100;
       case 'telegraph': return 100;
       case 'erupt': effects.push({ k: 'erupt', cells: e.cells, t0: now, dur: 900 }); EW.audio.sfx('fire'); return 500;
@@ -416,64 +442,91 @@
   }
 
   // ---------------------------------------------------------------- draw
+  // per-unit animation state: swing / cast / hurt timestamps and facing
+  const poseState = {};
+  function ps(id) { return poseState[id] || (poseState[id] = { swing: 0, cast: 0, hurt: 0, face: 1, dir: [0, 0] }); }
+  const bubbles = [];
+
+  function anim(t0, dur, now) { if (!t0) return 0; const p = (now - t0) / dur; return p < 0 || p > 1 ? 0 : Math.sin(p * Math.PI); }
+
   function drawToken(u, now) {
     const p = displayPos(u, now);
+    const st = ps(u.id);
     let x = (p.x + u.size / 2) * cell, y = (p.y + u.size / 2) * cell;
-    const r = cell * u.size * .42;
-    const shake = effects.find(e => e.k === 'shake' && e.id === u.id && now - e.t0 < e.dur);
-    if (shake) x += Math.sin(now / 18) * cell * .06;
     const dying = effects.find(e => e.k === 'death' && e.id === u.id);
-    let alpha = 1;
-    if (u.gone) { if (!dying || now - dying.t0 > dying.dur) return; alpha = 1 - (now - dying.t0) / dying.dur; }
+    let alpha = 1, deadT = 0;
+    if (u.gone) { if (!dying || now - dying.t0 > dying.dur + 600) return; deadT = Math.min(1, (now - dying.t0) / 350); alpha = Math.max(0, 1 - Math.max(0, now - dying.t0 - 400) / 700); }
+    const moving = anims[u.id] && anims[u.id].length && now >= anims[u.id][0].t0;
+    // facing: towards whoever it last attacked, else the nearest opponent
+    if (st.target) { const t = byId(st.target); if (t) st.face = t.x + t.size / 2 >= u.x + u.size / 2 ? 1 : -1; }
+    else { let best = null, bd = 1e9; for (const o of view.units) if (!o.gone && o.side !== u.side && !o.object) { const d = Math.abs(o.x - u.x) + Math.abs(o.y - u.y); if (d < bd) { bd = d; best = o; } } if (best) st.face = best.x >= u.x ? 1 : -1; }
+    const swing = anim(st.swing, 380, now), cast = Math.max(anim(st.cast, 600, now), 0), hurt = anim(st.hurt, 320, now);
+    if (swing && st.dir) { x += st.dir[0] * swing * cell * .25; y += st.dir[1] * swing * cell * .25; }
     ctx.globalAlpha = alpha;
-    // turn glow
+    // turn glow under the base
     if (u.id === view.turn && !view.over) {
-      const g = ctx.createRadialGradient(x, y, r * .8, x, y, r * 1.6);
-      g.addColorStop(0, 'rgba(240,138,60,.65)'); g.addColorStop(1, 'rgba(240,138,60,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, 7); ctx.fill();
+      const g = ctx.createRadialGradient(x, y + cell * u.size * .3, cell * .1, x, y + cell * u.size * .3, cell * u.size * .7);
+      g.addColorStop(0, 'rgba(240,138,60,.75)'); g.addColorStop(1, 'rgba(240,138,60,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y + cell * u.size * .3, cell * u.size * .7, cell * u.size * .3, 0, 0, 7); ctx.fill();
     }
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(x + 2, y + r * .75, r * .9, r * .35, 0, 0, 7); ctx.fill();
-    if (u.flies) y -= cell * .12 + Math.sin(now / 400 + x) * cell * .04;
-    // body
-    if (u.object) {
-      ctx.fillStyle = '#2a2220'; ctx.fillRect(x - r * .7, y - r * .3, r * 1.4, r * .9);
-      const fl = .8 + .2 * Math.sin(now / 90 + x);
-      const g = ctx.createRadialGradient(x, y - r * .4, 2, x, y - r * .4, r * 1.3);
-      g.addColorStop(0, `rgba(255,200,90,${fl})`); g.addColorStop(1, 'rgba(255,80,20,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - r * .4, r * 1.3, 0, 7); ctx.fill();
-    } else if (u.hero && portraits[u.heroId]) {
-      ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.clip();
-      ctx.drawImage(portraits[u.heroId], x - r, y - r, r * 2, r * 2);
-      ctx.restore();
-    } else {
-      const g = ctx.createRadialGradient(x - r * .3, y - r * .3, 2, x, y, r);
-      g.addColorStop(0, EW.shade(u.color, 50)); g.addColorStop(1, EW.shade(u.color, -50));
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
-      ctx.font = `${Math.round(r * 1.05)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(u.glyph, x, y + r * .06);
-    }
-    // ring: side colour
-    ctx.lineWidth = Math.max(2, cell * .07);
-    ctx.strokeStyle = u.side === 'party' ? (u.ally ? '#e6c068' : '#7dd3b0') : '#e05a5a';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
-    // HP arc
-    if (!u.object || u.hp < u.maxHp) {
+    const hero = u.hero ? EW.state.heroes.find(h => h.id === u.heroId) : null;
+    const fly = u.flies ? -(cell * .15 + Math.sin(now / 400 + x) * cell * .05) : 0;
+    const res = EW.figures.draw(ctx, u, hero, x, y + fly, cell * u.size, {
+      t: now / 1000, walk: moving ? now / 1000 : 0, swing, cast, hurt, face: st.face, flying: u.flies,
+      down: u.down && !u.gone ? 1 : 0, dead: deadT,
+    });
+    let top = Math.max(res.top, y - cell * u.size * 1.6);
+    // health bar & tags above the head
+    if (!u.gone && (!u.object || u.hp < u.maxHp)) {
+      const bw = cell * Math.min(1.1, .8 * u.size + .2), bh = Math.max(3, cell * .08), bx = x - bw / 2, by = top - bh - 4;
       const frac = Math.max(0, u.hp) / u.maxHp;
-      ctx.lineWidth = Math.max(2, cell * .08);
-      ctx.strokeStyle = frac > .5 ? '#6ee07a' : frac > .25 ? '#f0c040' : '#ff5a5a';
-      ctx.beginPath(); ctx.arc(x, y, r + ctx.lineWidth * 1.2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = frac > .5 ? '#6ee07a' : frac > .25 ? '#f0c040' : '#ff5a5a'; ctx.fillRect(bx, by, bw * frac, bh);
+      if (u.temp) { ctx.fillStyle = '#8fd3ff'; ctx.fillRect(bx, by - 2, Math.min(bw, bw * u.temp / u.maxHp), 2); }
+      top = by;
     }
-    // states
-    if (u.down && !u.gone) { ctx.fillStyle = 'rgba(20,10,10,.55)'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.font = `${Math.round(r)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(u.dead ? '☠' : u.stable ? '💤' : '💔', x, y); }
-    if (u.conds.includes('charmed')) { ctx.font = `${Math.round(r * .6)}px serif`; ctx.fillText('💗', x + r * .8, y - r * .8); }
-    if (u.conds.includes('asleep')) { ctx.font = `${Math.round(r * .6)}px serif`; ctx.fillText('💤', x + r * .8, y - r * .8); }
-    if (u.conds.includes('raging')) { ctx.strokeStyle = 'rgba(255,60,40,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, 7); ctx.stroke(); }
-    if (u.conds.includes('blessed')) { ctx.strokeStyle = 'rgba(255,230,140,.8)'; ctx.setLineDash([3, 4]); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
-    if (u.conds.includes('prone')) { ctx.font = `${Math.round(r * .5)}px sans-serif`; ctx.fillStyle = '#fff'; ctx.fillText('⤓', x - r * .85, y - r * .8); }
-    if (u.conds.includes('outlined')) { ctx.strokeStyle = `rgba(200,120,255,${.5 + .3 * Math.sin(now / 200)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, r * 1.1, 0, 7); ctx.stroke(); }
-    if (u.conc) { ctx.fillStyle = '#9fe3ff'; ctx.beginPath(); ctx.arc(x - r * .8, y + r * .8, cell * .08, 0, 7); ctx.fill(); }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const icons = [];
+    if (u.down && !u.gone) icons.push(u.dead ? '☠' : u.stable ? '💤' : '💔');
+    if (u.conds.includes('charmed')) icons.push('💗');
+    if (u.conds.includes('asleep')) icons.push('💤');
+    if (u.conds.includes('prone') && !u.down) icons.push('⤓');
+    if (u.conds.includes('paralyzed')) icons.push('⛓');
+    if (u.conds.includes('burning')) icons.push('🔥');
+    if (u.conds.includes('frightened')) icons.push('😱');
+    if (u.conc) icons.push('✧');
+    if (icons.length) { ctx.font = `${Math.round(cell * .32)}px serif`; ctx.fillText(icons.join(''), x, top - 2); }
+    // rings for buffs (drawn round the base)
+    const by2 = y + cell * u.size * .3;
+    if (u.conds.includes('raging')) { ctx.strokeStyle = 'rgba(255,60,40,.85)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, by2, cell * u.size * .46, cell * u.size * .17, 0, 0, 7); ctx.stroke(); }
+    if (u.conds.includes('blessed')) { ctx.strokeStyle = 'rgba(255,230,140,.85)'; ctx.setLineDash([3, 4]); ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, by2, cell * u.size * .5, cell * u.size * .19, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
+    if (u.conds.includes('outlined')) { ctx.strokeStyle = `rgba(200,120,255,${.5 + .3 * Math.sin(now / 200)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, by2 - cell * .5, cell * .45, cell * .7, 0, 0, 7); ctx.stroke(); }
+    if (u.conds.includes('spirit_guardians')) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; for (let i = 0; i < 5; i++) { const a = now / 600 + i * 1.26; ctx.fillStyle = 'rgba(255,240,170,.5)'; ctx.beginPath(); ctx.arc(x + Math.cos(a) * cell * 1.8, by2 + Math.sin(a) * cell * .9, cell * .12, 0, 7); ctx.fill(); } ctx.restore(); }
     ctx.globalAlpha = 1;
+    st.top = top;
+  }
+
+  function drawBubbles(now) {
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      if (now - b.t0 > 2600) { bubbles.splice(i, 1); continue; }
+      const u = byId(b.id); if (!u) continue;
+      const st = ps(b.id);
+      const p = displayPos(u, now);
+      const x = (p.x + u.size / 2) * cell, y = (st.top || (p.y * cell)) - 8;
+      const a = Math.min(1, (now - b.t0) / 150, (2600 - (now - b.t0)) / 300);
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.font = `600 ${Math.max(11, Math.round(cell * .3))}px "Alegreya Sans", sans-serif`;
+      const w = Math.min(cell * 6, ctx.measureText(b.text).width + 16), h = Math.max(20, cell * .5);
+      const bx = Math.max(4, Math.min(cv.width / dpr - w - 4, x - w / 2)), by = Math.max(4, y - h - 6);
+      ctx.fillStyle = b.boss ? '#3a0f0a' : b.side === 'party' ? '#f4ead2' : '#2a1a1f';
+      ctx.strokeStyle = b.boss ? '#ff7a2a' : b.side === 'party' ? '#57c9a2' : '#d9534f'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(bx, by, w, h, 8); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 5, by + h); ctx.lineTo(x, by + h + 7); ctx.lineTo(x + 5, by + h); ctx.fill();
+      ctx.fillStyle = b.side === 'party' && !b.boss ? '#2b2118' : '#f4ead2'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(b.text, bx + w / 2, by + h / 2, w - 10);
+      ctx.globalAlpha = 1;
+    }
   }
 
   function drawEffects(now) {
@@ -560,7 +613,11 @@
     // lava/fire tiles animate
     for (let y = 0; y < view.h; y++) for (let x = 0; x < view.w; x++) {
       const t = view.tiles[y][x];
-      if (t === 'L') {
+      if (t === 'G') {
+        const fl = .5 + .5 * Math.sin(now / 400 + x * 2.1 + y);
+        ctx.fillStyle = `rgba(110,${170 + fl * 40},40,.85)`; ctx.fillRect(x * cell, y * cell, cell, cell);
+        for (let b = 0; b < 2; b++) { const bp = ((now / 900 + x * .37 + y * .51 + b * .5) % 1); ctx.fillStyle = `rgba(220,255,140,${1 - bp})`; ctx.beginPath(); ctx.arc(x * cell + cell * (.3 + b * .4), y * cell + cell * (.7 - bp * .4), cell * .07 * (1 - bp) + 1, 0, 7); ctx.fill(); }
+      } else if (t === 'L') {
         const fl = .5 + .5 * Math.sin(now / 300 + x * 1.7 + y);
         if (view.backdrop === 'camp') {
           ctx.fillStyle = '#3a2210'; ctx.fillRect(x * cell + cell * .15, y * cell + cell * .55, cell * .7, cell * .15);
@@ -598,6 +655,8 @@
         else if (mode.shape === 'cube') cells = cubeCells(me, hover.x, hover.y, mode.size);
         else if (mode.shape === 'sphere') cells = sphereCells(hover.x, hover.y, mode.size);
         else if (mode.shape === 'tele') cells = [[hover.x, hover.y]];
+        else if (mode.shape === 'line') cells = lineCells(me, hover.x, hover.y, mode.size);
+        else if (mode.shape === 'self') cells = sphereCells(me.x, me.y, mode.size);
         const col = mode.spell ? (DTYPE[mode.spell.damageType] || '#c9a2ff') : '#ff9a4a';
         ctx.fillStyle = col; ctx.globalAlpha = .35;
         for (const [x, y] of cells) ctx.fillRect(x * cell, y * cell, cell, cell);
@@ -630,10 +689,11 @@
     ctx.drawImage(terrain, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawOverlays(now);
-    const sorted = view.units.slice().sort((a, b) => (a.down ? -1 : 0) - (b.down ? -1 : 0) || a.y - b.y);
+    const sorted = view.units.slice().sort((a, b) => (a.down ? -1 : 0) - (b.down ? -1 : 0) || (a.y + a.size) - (b.y + b.size));
     for (const u of sorted) drawToken(u, now);
     drawEffects(now);
     drawFloaters(now);
+    drawBubbles(now);
   }
   requestAnimationFrame(frame);
   B.layout = layout;

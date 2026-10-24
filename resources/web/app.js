@@ -3,7 +3,7 @@
   const h = EW.h, $ = id => document.getElementById(id);
   let S = null;                  // latest server state
   EW.state = { players: [], heroes: [] };
-  let showLobby = false, lastSceneKey = '', lastLogTs = 0, lastPhase = '', es = null, narrator = localStorage.getItem('ew.narrator') === '1';
+  let showLobby = false, lastSceneKey = '', lastLogTs = 0, lastPhase = '', es = null, sceneTs = 0, talkKind = 'say';
 
   // ================================================================ join & connection
   async function join(name) {
@@ -11,6 +11,7 @@
     if (!r.ok) return;
     EW.me.id = r.id; EW.me.name = r.name; EW.me.host = r.host;
     localStorage.setItem('ew.pid', r.id); localStorage.setItem('ew.name', r.name);
+    EW.api('/api/info', undefined, { quiet: true }).then(i => { if (i && i.urls) EW.voice.setServer(i); });
     $('joinBox').classList.add('hidden');
     $('lobbyMain').classList.remove('hidden');
     connect();
@@ -144,7 +145,7 @@
     if (hero.inspiration) extra.push(h('span.cond.good', '✨ inspired'));
     if (hero.mageArmor) extra.push(h('span.cond.good', 'mage armor'));
     if (hero.dead) extra.push(h('span.cond.bad', 'dead'));
-    if (conds.length || extra.length) card.append(h('div.conds', extra, conds.filter(c => !['ending', 'autoplaying', 'savage_used', 'cleaved'].includes(c)).map(c => h('span.cond.' + (EW.condClass(c) || 'x'), EW.condLabel(c)))));
+    if (conds.length || extra.length) card.append(h('div.conds', extra, conds.filter(c => !['ending', 'autoplaying', 'savage_used', 'cleaved', 'barked_bloodied'].includes(c)).map(c => h('span.cond.' + (EW.condClass(c) || 'x'), EW.condLabel(c)))));
     if (lobby && (hero.player === EW.me.id || EW.me.host) && !hero.npc) card.append(h('button.btn.small.ghost', { style: { marginTop: '6px' }, onclick: async e => { e.stopPropagation(); if (confirm(`Remove ${hero.name} from the party?`)) await EW.api('/api/hero/remove', { hero: hero.id }); } }, 'Remove'));
     return card;
   }
@@ -166,7 +167,8 @@
       EW.audio.setMood(sc.music);
       $('story').scrollTop = 0;
       $('page').animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 500, easing: 'ease-out' });
-      if (narrator) speak(sc.text);
+      sceneTs = Date.now() - 500;
+      EW.voice.speakScene(sc);
     }
     $('sceneTitle').textContent = sc.title;
     $('sceneText').innerHTML = EW.md(sc.text);
@@ -182,6 +184,8 @@
     renderRolls();
     renderChoices();
     renderShop();
+    renderDialogue();
+    renderTalk();
   }
 
   function renderRolls() {
@@ -238,6 +242,66 @@
     sh.append(h('h3', `Tobin's wares — ${who.name.split(' ')[0]} has ${who.gold} gp`), grid);
   }
 
+  // ================================================================ in-character dialogue
+  function renderDialogue() {
+    const box = $('dialogue');
+    const lines = S.log.filter(e => ['speech', 'deed', 'npcspeech'].includes(e.style) && e.ts >= sceneTs).slice(-6);
+    if (!lines.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden'); box.innerHTML = '';
+    for (const e of lines) {
+      const said = e.text.includes('“') ? e.text.slice(e.text.indexOf('“') + 1).replace(/”$/, '') : e.text;
+      box.append(h('div.dl' + (e.style === 'npcspeech' ? '.dl-npc' : e.style === 'deed' ? '.dl-deed' : ''),
+        h('span.who', { style: { background: e.color || '#888' } }, (e.who || '?').slice(0, 2)),
+        h('span.said', h('b', e.who || ''), said)));
+    }
+  }
+
+  function myHeroes() { return S.heroes.filter(x => x.player === EW.me.id && !x.npc); }
+
+  function renderTalk() {
+    const mine = myHeroes();
+    const t = $('talk');
+    t.classList.toggle('hidden', !mine.length);
+    const sel = $('talkHero');
+    const cur = sel.value;
+    if (sel.options.length !== mine.length || [...sel.options].some((o, i) => o.value !== mine[i].id)) {
+      sel.innerHTML = '';
+      for (const x of mine) sel.append(h('option', { value: x.id }, x.name.split(' ')[0]));
+      if (cur) sel.value = cur;
+    }
+    sel.classList.toggle('hidden', mine.length < 2);
+    $('dmLabel').textContent = S.dm ? 'DM: ' + S.dm.label : '';
+    $('dmThinking').classList.toggle('hidden', !S.dmBusy);
+  }
+
+  for (const b of document.querySelectorAll('#talk .seg button')) b.onclick = () => {
+    talkKind = b.dataset.kind;
+    document.querySelectorAll('#talk .seg button').forEach(x => x.classList.toggle('on', x === b));
+    $('talkInput').placeholder = talkKind === 'say' ? '“Mira, love — what\'s the strangest thing you\'ve heard tonight?”' : 'leans over the bar and slides a gold coin toward Mira…';
+  };
+  async function sendTalk(text, kind) {
+    if (!text.trim()) return;
+    const r = await EW.api('/api/say', { hero: $('talkHero').value, text, kind });
+    if (r.ok) $('talkInput').value = '';
+  }
+  $('talk').onsubmit = e => { e.preventDefault(); sendTalk($('talkInput').value, talkKind); };
+
+  // microphone: speak your line, it's typed for you and sent
+  const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Rec) $('talkMic').classList.add('hidden');
+  else {
+    let rec = null;
+    $('talkMic').onclick = () => {
+      if (rec) { rec.stop(); return; }
+      rec = new Rec(); rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false;
+      $('talkMic').classList.add('listening');
+      rec.onresult = ev => { let t = ''; for (const r of ev.results) t += r[0].transcript; $('talkInput').value = t; if (ev.results[ev.results.length - 1].isFinal) sendTalk(t, talkKind); };
+      rec.onend = () => { $('talkMic').classList.remove('listening'); rec = null; };
+      rec.onerror = () => { EW.toast('The microphone is not available (allow access in your browser).'); };
+      rec.start();
+    };
+  }
+
   // ================================================================ ending
   function renderEnding() {
     const e = $('ending'); e.innerHTML = '';
@@ -266,7 +330,14 @@
     }
     if (atBottom || true) el.scrollTop = el.scrollHeight;
   }
-  $('chatForm').onsubmit = e => { e.preventDefault(); const t = $('chatInput').value.trim(); if (t) EW.api('/api/chat', { text: t }); $('chatInput').value = ''; };
+  $('chatForm').onsubmit = e => {
+    e.preventDefault();
+    const t = $('chatInput').value.trim();
+    if (!t) return;
+    if ($('chatMode').value === 'say' && !t.startsWith('/')) { const mine = myHeroes(); EW.api('/api/say', { hero: mine.length ? mine[0].id : '', text: t, kind: 'say' }); }
+    else EW.api('/api/chat', { text: t });
+    $('chatInput').value = '';
+  };
 
   // ================================================================ fx
   function handleFx(f) {
@@ -290,6 +361,8 @@
       case 'rest': EW.audio.sfx('heal'); break;
       case 'phase': banner('', f.text, true); break;
       case 'heroJoined': EW.toast(`${f.name} joins the party`, true); break;
+      case 'speech': EW.voice.speech(f); break;
+      case 'narrate': EW.voice.narrate(f.text); break;
       case 'turn': break;
     }
   }
@@ -309,15 +382,7 @@
     d.animate([{ opacity: 0 }, { opacity: 1 }, { opacity: 0 }], { duration: 900 }).onfinish = () => d.remove();
   }
 
-  function speak(text) {
-    if (!('speechSynthesis' in window)) return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(text).replace(/\*+/g, '').replace(/\n+/g, ' '));
-    u.rate = .95; u.pitch = .9;
-    const v = speechSynthesis.getVoices().find(v => /en-GB/i.test(v.lang)) || speechSynthesis.getVoices().find(v => /^en/i.test(v.lang));
-    if (v) u.voice = v;
-    speechSynthesis.speak(u);
-  }
+  function speak(text) { EW.voice.narrate(text); }
 
   // ================================================================ character sheet
   function openSheet(id) {
@@ -405,14 +470,24 @@
     const box = h('div', h('h2', 'Table menu'),
       h('h3', 'Invite friends'), h('p.hint', 'Anyone on your network can join from a browser — Windows, Mac, phone or tablet:'),
       ...info.urls.slice(1).map(u => h('div.invite', u)), info.urls.length < 2 ? h('p.hint', 'No network address found — friends can join over the internet with a tunnel (see README).') : null,
-      h('h3', 'Sound & voice'),
+      h('h3', 'Music'),
       h('div.menu-list',
         h('label.row', h('input', { type: 'checkbox', checked: EW.audio.on, onchange: e => EW.audio.toggle(e.target.checked) }), 'Music & sound effects'),
-        h('label.row', h('input', { type: 'checkbox', checked: narrator, onchange: e => { narrator = e.target.checked; localStorage.setItem('ew.narrator', narrator ? '1' : '0'); if (narrator && S.scene) speak(S.scene.text); else speechSynthesis.cancel(); } }), 'Narrator reads each scene aloud'),
         h('label.row', h('input', { type: 'checkbox', checked: meP && meP.autoplay, onchange: e => EW.api('/api/autoplay', { on: e.target.checked }) }), 'Auto-play my hero in battle (for when you step away)')),
+      h('h3', 'Voices'), EW.voice.panel(),
       h('h3', 'The tale'),
       h('div.row.wrap.gap', h('button.btn', { onclick: () => { showLobby = true; EW.closeModal(); applyState(S); } }, 'Open the lobby (heroes & tales)')));
     if (EW.me.host) {
+      const ai = await EW.api('/api/ai', undefined, { quiet: true });
+      const prov = h('select', ['rules', 'ollama', 'openai', 'anthropic'].map(p => h('option', { value: p, selected: ai.provider === p }, { rules: 'Built-in improv rules (no setup)', ollama: 'Local AI with Ollama', openai: 'OpenAI-compatible server (LM Studio, llama.cpp…)', anthropic: 'Claude (Anthropic API key)' }[p])));
+      const url = h('input', { value: ai.url || '', placeholder: 'default: http://localhost:11434 for Ollama' });
+      const model = h('input', { value: ai.model || '', placeholder: 'e.g. gemma3, llama3.2 (blank = first installed)' });
+      const key = h('input', { type: 'password', value: ai.hasKey ? '••••••••' : '', placeholder: 'API key (only for Claude / hosted servers)' });
+      const out = h('p.hint');
+      box.append(h('h3', 'AI Dungeon Master (host)'), h('p.hint', 'Players can speak in character; the DM answers in the NPC\'s voice and may call for checks. It never changes the plot.'),
+        h('div.menu-list', h('label.field', h('span', 'Who plays the DM'), prov), h('div.two', h('label.field', h('span', 'Server URL'), url), h('label.field', h('span', 'Model'), model)), h('label.field', h('span', 'API key'), key),
+          h('div.row.gap', h('button.btn.small.primary', { onclick: async () => { const r = await EW.api('/api/ai/config', { provider: prov.value, url: url.value, model: model.value, apiKey: key.value }); if (r.ok) { out.textContent = 'Saved — ' + r.dm.label; } } }, 'Save'),
+            h('button.btn.small', { onclick: async () => { out.textContent = 'Testing…'; const r = await EW.api('/api/ai/test', {}); out.textContent = r.message || r.error; } }, 'Test connection')), out));
       const name = h('input', { placeholder: 'save name', value: 'my-game' });
       box.append(h('h3', 'Saves (host)'), h('div.row.wrap.gap', name, h('button.btn', { onclick: async () => { const r = await EW.api('/api/save', { name: name.value }); if (r.ok) EW.toast('Saved', true); } }, 'Save game')),
         h('div.row.wrap.gap', { style: { marginTop: '8px' } }, saves.map(s => h('button.btn.small', { onclick: async () => { if (confirm(`Load “${s}”? Unsaved progress will be lost.`)) { const r = await EW.api('/api/load', { name: s }); if (r.ok) { showLobby = false; lastSceneKey = ''; EW.closeModal(); } } } }, 'Load ' + s))));

@@ -154,6 +154,7 @@ public final class Emberwild implements CampaignScript {
                 .choice("Find a seat and take in the room").icon("🪑").go("tavern");
 
         c.scene("tavern").chapter("Prologue").title("The Common Room").backdrop("tavern").time("night").music("tavern").anchor("tavern")
+                .ambience("crowd", "fire", "rain").aside("Gerrold, if you sing that verse one more time I will set YOU on fire. Now — where was I?", "Ah, the Gilded Antler. Best stew this side of the Thornwood. Worst ale on either side.")
                 .text("The fire crackles, the fiddle sings, and the Gilded Antler carries on around you. There is plenty to do on a night like this — and somewhere under the laughter, you can feel the story waiting to begin.")
                 .choice("Talk to Mira at the bar").icon("🍻").unlessFlag("mira_done").go("mira")
                 .choice("Join the game of Dragon's Bones").icon("🎲").unlessFlag("bones_done").go("bones")
@@ -238,6 +239,7 @@ public final class Emberwild implements CampaignScript {
 
         // ---- Vesk & the brawl
         c.scene("vesk").chapter("Prologue").title("The Man in the Corner").backdrop("tavern").time("night").music("tension")
+                .ambience("crowd", "fire").aside("Notice how the room got quieter? Taverns always know before you do.")
                 .npc("Vesk Marrow", "Cartographer (Terrified)", "#5d6d7e", "🗺", "I don't— I'm not— please, just sit so they can't see my face.")
                 .text("The hooded man is younger than he looked — ink-stained fingers, a scholar's squint, and the hollow eyes of someone who hasn't slept in days. A leather map-case is clutched against his chest like a shield. He glances at the door. Then at you. Then at the door again.")
                 .choice("Speak gently and earn his trust").icon("💬").check("persuasion", 12)

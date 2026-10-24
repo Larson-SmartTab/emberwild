@@ -8,6 +8,7 @@
   let cur = null, prev = null, fadeT = 1;
   let particles = [], key = '';
   let dim = 0, dimTarget = 0;
+  let flashV = 0, bolt = null, sparks = [], critters = [], critterKind = null, nextCritter = 0;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -436,6 +437,66 @@
 
   S.dim = function (v) { dimTarget = v; };
 
+  // ------------------------------------------------------------------- story animation hooks
+  const INDOOR = ['tavern', 'chapel', 'lair', 'cave', 'dungeon', 'hall', 'crypt', 'mine', 'seacave', 'hoard'];
+  /** Lightning: a white flash, and a bolt across the sky outdoors. */
+  S.flash = function () {
+    flashV = 1;
+    if (cur && !INDOOR.includes(cur.args[0])) {
+      let x = W * (.15 + Math.random() * .7), y = 0; const pts = [[x, y]];
+      while (y < H * .45) { y += (20 + Math.random() * 40) * dpr; x += (Math.random() - .5) * 60 * dpr; pts.push([x, y]); }
+      bolt = { pts, life: 1 };
+    }
+  };
+  /** A burst of sparks from the scene's fires (or the bottom of the screen). */
+  S.flare = function () {
+    const fires = cur && cur.info.lights ? cur.info.lights.filter(L => L.fire || L.flame) : [];
+    for (let i = 0; i < 70; i++) {
+      const L = fires.length ? fires[i % fires.length] : { x: W * Math.random(), y: H };
+      sparks.push({ x: L.x + (Math.random() - .5) * 30 * dpr, y: L.y, vx: (Math.random() - .5) * 3 * dpr, vy: -(2 + Math.random() * 5) * dpr, life: 1 });
+    }
+  };
+  /** Little lives in the background: birds by day, bats at night or underground, gulls by the sea. */
+  S.setCritters = function (backdrop, time, amb) {
+    critters = [];
+    const night = time === 'night' || time === 'dusk';
+    critterKind = ['coast', 'ship'].includes(backdrop) ? (night ? 'bat' : 'gull')
+      : ['crypt', 'cave', 'mine', 'dungeon', 'ruins', 'seacave'].includes(backdrop) ? 'bat'
+      : ['forest', 'grove', 'road', 'village', 'town', 'bridge', 'swamp', 'camp', 'snow'].includes(backdrop) ? (night ? 'bat' : 'bird') : null;
+    nextCritter = performance.now() + 3000 + Math.random() * 6000;
+  };
+  function spawnFlock() {
+    const n = critterKind === 'bat' ? 2 + Math.floor(Math.random() * 5) : 3 + Math.floor(Math.random() * 6);
+    const dir = Math.random() < .5 ? 1 : -1, y0 = H * (.08 + Math.random() * .25), sp = (critterKind === 'gull' ? 1.1 : critterKind === 'bat' ? 2.2 : 1.6) * dpr;
+    for (let i = 0; i < n; i++) critters.push({ x: dir > 0 ? -30 - i * 26 * dpr : W + 30 + i * 26 * dpr, y: y0 + (i % 2 ? 1 : -1) * i * 7 * dpr + Math.random() * 10 * dpr, vx: dir * sp * (.9 + Math.random() * .2), ph: Math.random() * 6, kind: critterKind, s: (critterKind === 'gull' ? 7 : 5) * dpr * (.8 + Math.random() * .4) });
+  }
+  function drawCritters(t) {
+    if (critterKind && performance.now() > nextCritter) { spawnFlock(); nextCritter = performance.now() + 9000 + Math.random() * 16000; }
+    for (const c of critters) {
+      c.x += c.vx; c.ph += critterKind === 'bat' ? .5 : .22;
+      const yy = c.y + (c.kind === 'bat' ? Math.sin(c.ph * .7) * 8 * dpr : Math.sin(c.ph * .15) * 3 * dpr), wing = Math.sin(c.ph) * c.s * (c.kind === 'gull' ? .5 : .8);
+      ctx.strokeStyle = c.kind === 'gull' ? 'rgba(240,240,235,.85)' : c.kind === 'bat' ? 'rgba(15,10,20,.85)' : 'rgba(30,25,30,.7)';
+      ctx.lineWidth = (c.kind === 'gull' ? 1.8 : 1.5) * dpr; ctx.beginPath();
+      ctx.moveTo(c.x - c.s, yy - wing); ctx.quadraticCurveTo(c.x - c.s * .4, yy - wing * .2 - (c.kind === 'bat' ? 2 * dpr : 0), c.x, yy);
+      ctx.quadraticCurveTo(c.x + c.s * .4, yy - wing * .2, c.x + c.s, yy - wing); ctx.stroke();
+    }
+    critters = critters.filter(c => c.x > -300 && c.x < W + 300);
+  }
+  function drawFlashes() {
+    if (sparks.length) {
+      ctx.globalCompositeOperation = 'lighter';
+      for (const p of sparks) { p.x += p.vx; p.y += p.vy; p.vy += .06 * dpr; p.life -= .012; ctx.fillStyle = `rgba(255,${160 + Math.floor(p.life * 80)},70,${Math.max(0, p.life)})`; ctx.beginPath(); ctx.arc(p.x, p.y, 1.8 * dpr, 0, 7); ctx.fill(); }
+      ctx.globalCompositeOperation = 'source-over';
+      sparks = sparks.filter(p => p.life > 0);
+    }
+    if (bolt) {
+      ctx.strokeStyle = `rgba(230,235,255,${bolt.life})`; ctx.lineWidth = 3 * dpr; ctx.shadowColor = '#bcd'; ctx.shadowBlur = 20 * dpr;
+      ctx.beginPath(); bolt.pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.shadowBlur = 0;
+      bolt.life -= .08; if (bolt.life <= 0) bolt = null;
+    }
+    if (flashV > .01) { ctx.fillStyle = `rgba(225,232,255,${flashV * .55})`; ctx.fillRect(0, 0, W, H); flashV *= .86; }
+  }
+
   function spawnParticles() {
     particles = [];
     if (!cur) return;
@@ -560,12 +621,17 @@
     if (fadeT < 1) fadeT = Math.min(1, fadeT + 0.025);
     dim += (dimTarget - dim) * 0.08;
     ctx.globalAlpha = 1;
+    // a slow "camera drift" over the painting
+    const z = reduced ? 1 : 1.035 + .02 * Math.sin(t * .045), ox = reduced ? 0 : (Math.sin(t * .031) * .5 + .5) * (z - 1) * W, oy = reduced ? 0 : (Math.cos(t * .027) * .5 + .5) * (z - 1) * H;
+    ctx.save(); ctx.translate(-ox, -oy); ctx.scale(z, z);
     if (prev && fadeT < 1) { ctx.drawImage(prev.canvas, 0, 0); ctx.globalAlpha = fadeT; }
     ctx.drawImage(cur.canvas, 0, 0);
     ctx.globalAlpha = 1;
     drawLights(cur.info, t, fadeT);
     water(cur.info, t);
-    if (!reduced) drawParticles(t);
+    ctx.restore();
+    if (!reduced) { drawCritters(t); drawParticles(t); }
+    drawFlashes();
     if (dim > 0.01) { ctx.fillStyle = `rgba(8,9,16,${dim})`; ctx.fillRect(0, 0, W, H); }
   }
 

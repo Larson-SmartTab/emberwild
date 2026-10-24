@@ -69,7 +69,15 @@ Everything happens live: when one player moves, rolls or votes, everybody sees i
   *In character* mode.
 - **Voices** (☰ → Voices): a narrator, a different voice for every NPC and hero (matched to species, gender
   and monster type), and battle chatter in speech bubbles. See *Natural voices* below to make them sound human.
-- **Sound**: procedural music for every mood (tavern, sea shanty, snow, dungeon, dragon) and effects.
+- **The lore-teller**: Old Wick (or Old Mother Wick, matching the narrator's voice) sits by a candle beside the
+  party, reading the tale aloud with moving lips and subtitles. He reacts to the table: grins at a good roll,
+  winces at a trap, goes grim when a fight is near, and shushes the tavern when it gets too rowdy.
+- **Living sound** (☰ menu): procedural music for every mood, plus soundscapes that react to the story — a tavern
+  crowd that laughs, cheers and smashes a mug before someone tells it to pipe down, crackling fires, rain and
+  thunder (with lightning on screen), surf and gulls, cave drips, birdsong, crickets and owls. When a battle is one
+  choice away the music darkens, a heartbeat starts, and it builds when the table leans toward the fight.
+- **Story animations**: pages turn, paragraphs fade in, coins fly into your purse, loot rises glowing, spells burst
+  in fire, frost, lightning or runes, traps flash red, and birds, bats and gulls cross the painted skies.
 - **Continue** from the lobby: the game autosaves, and the host gets a *Continue your last adventure* button.
 
 Keyboard: **D** dice · **C** character sheet · **1–9** pick a choice · **Esc** cancel targeting.

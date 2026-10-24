@@ -44,6 +44,7 @@
     show('table');
     renderParty();
     renderLog();
+    EW.tale.combat(s.phase === 'combat' && !!s.combat);
     if (s.phase === 'combat' && s.combat) {
       $('story').classList.add('hidden'); $('ending').classList.add('hidden'); $('battle').classList.remove('hidden');
       EW.scene.dim(.55);
@@ -59,6 +60,7 @@
       $('battle').classList.add('hidden'); $('ending').classList.add('hidden'); $('story').classList.remove('hidden');
       EW.scene.dim(0);
       renderStory();
+      EW.tale.update(s);
     }
     lastPhase = s.phase;
   }
@@ -164,23 +166,37 @@
     const sc = S.scene;
     if (!sc) return;
     const key = sc.campaign + ':' + sc.id;
-    if (key !== lastSceneKey) {
+    const fresh = key !== lastSceneKey;
+    if (fresh) {
       lastSceneKey = key;
       EW.scene.show(sc.backdrop, sc.time, sc.weather);
       EW.audio.setMood(sc.music);
+      EW.audio.sfx('page');
       $('story').scrollTop = 0;
-      $('page').animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 500, easing: 'ease-out' });
+      // the lore-teller turns the page
+      $('page').animate([{ opacity: 0, transform: 'perspective(1600px) rotateY(-28deg) translateX(-40px)', transformOrigin: 'left center' }, { opacity: 1, transform: 'perspective(1600px) rotateY(0) translateX(0)', transformOrigin: 'left center' }], { duration: 650, easing: 'cubic-bezier(.2,.7,.3,1)' });
       sceneTs = Date.now() - 500;
       EW.voice.speakScene(sc);
+      EW.tale.scene(sc, key);
     }
     $('sceneTitle').textContent = sc.title;
-    $('sceneText').innerHTML = EW.md(sc.text);
+    const html = EW.md(sc.text);
+    if (fresh || $('sceneText')._html !== html) {
+      $('sceneText').innerHTML = html; $('sceneText')._html = html;
+      if (fresh) [...$('sceneText').children].forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(6px)', filter: 'blur(2px)' }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 700, delay: 250 + i * 380, fill: 'backwards', easing: 'ease-out' }));
+    }
     const npc = $('npcCard');
     if (sc.npc && sc.npc.name) {
-      npc.classList.remove('hidden'); npc.innerHTML = '';
-      const cv = h('canvas'); EW.medallion(cv, sc.npc.color, sc.npc.glyph, 76);
-      npc.append(cv, h('div', h('div.who', sc.npc.name), h('div.role', sc.npc.title || ''), sc.npc.line ? h('div.line', '“' + sc.npc.line + '”') : null));
-    } else npc.classList.add('hidden');
+      const nk = sc.npc.name + '|' + (sc.npc.line || '');
+      if (npc._k !== nk || fresh) {
+        npc._k = nk;
+        npc.classList.remove('hidden'); npc.innerHTML = '';
+        const cv = h('canvas'); EW.medallion(cv, sc.npc.color, sc.npc.glyph, 76);
+        npc.append(cv, h('div', h('div.who', sc.npc.name), h('div.role', sc.npc.title || ''), sc.npc.line ? h('div.line', '“' + sc.npc.line + '”') : null));
+        npc.dataset.voice = 'npc:' + sc.npc.name;
+        if (fresh) npc.animate([{ opacity: 0, transform: 'translateX(-24px) scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 600, delay: 200, fill: 'backwards', easing: 'cubic-bezier(.2,.8,.3,1.2)' });
+      }
+    } else { npc.classList.add('hidden'); npc._k = ''; npc.dataset.voice = ''; }
     const oc = $('outcome');
     if (S.outcome && S.outcome.text) { oc.classList.remove('hidden'); oc.className = 'outcome' + (S.outcome.success ? '' : ' fail'); oc.innerHTML = EW.md(S.outcome.text); }
     else oc.classList.add('hidden');
@@ -220,7 +236,9 @@
       const vs = h('span.voters');
       for (const v of c.votes) { const p = S.players.find(x => x.id === v); if (p) vs.append(h('i', { style: { background: p.color }, title: p.name })); }
       tags.append(vs);
-      const btn = h('button.choice' + (voted ? '.voted' : ''), { disabled: busy || !!c.disabled || (!myHero && !EW.me.host) || (c.spell && !c.caster), title: c.disabled || '', onclick: () => EW.api('/api/vote', { choice: c.id }) },
+      const btn = h('button.choice' + (voted ? '.voted' : '') + (c.battle ? '.battle-choice' : ''), { disabled: busy || !!c.disabled || (!myHero && !EW.me.host) || (c.spell && !c.caster), title: c.disabled || '', onclick: () => EW.api('/api/vote', { choice: c.id }),
+        onmouseenter: c.battle ? () => EW.tale.lean(true) : null, onfocus: c.battle ? () => EW.tale.lean(true) : null,
+        onmouseleave: c.battle ? () => { if (!S.scene.choices.some(x => x.battle && x.votes.length)) EW.tale.lean(false); } : null },
         h('span.ic', c.icon || '•'), h('span.lbl', c.label, c.hint ? h('span.sub', c.hint) : c.disabled ? h('span.sub', c.disabled) : null), tags);
       ol.append(h('li', btn));
     });
@@ -345,6 +363,17 @@
   // ================================================================ fx
   function handleFx(f) {
     if (S && S.phase === 'combat') EW.battle.fx(f);
+    EW.tale.fx(f);
+    const story = !S || S.phase !== 'combat';
+    switch (f.t) {
+      case 'gold': if (f.amount > 0) { EW.storyfx.play('coins', { amount: f.amount }); EW.audio.sfx('coin'); } break;
+      case 'loot': EW.storyfx.play('loot', { glyph: ({ potion: '🧪', ring: '💍', cloak: '🧥', amulet: '📿', scroll: '📜', wand: '🪄', weapon: '⚔️', armor: '🛡️', key: '🗝️', gear: '🎒', trinket: '🔮' })[(f.item && (f.item.kind || f.item.type)) || ''] || '✦', label: f.item && f.item.name }); EW.audio.sfx('loot'); break;
+      case 'rest': EW.storyfx.play('heal'); break;
+      case 'levelUp': EW.storyfx.play('level'); break;
+      case 'storySpell': EW.storyfx.play(['fire', 'cold', 'lightning'].includes(f.dtype) ? f.dtype : (f.dtype || 'arcane')); break;
+      case 'storyHurt': EW.storyfx.play('hurt', { amount: f.amount }); break;
+      case 'checkResult': if (story) EW.storyfx.play(f.success ? 'success' : 'fail'); break;
+    }
     switch (f.t) {
       case 'roll': {
         if (f.quiet) break;
@@ -358,7 +387,6 @@
       case 'battleEnd': banner(f.result === 'victory' ? 'Victory!' : 'Defeat', f.title, f.result !== 'victory'); EW.audio.sfx(f.result === 'victory' ? 'win' : 'lose'); break;
       case 'levelUp': banner(`Level ${f.level}!`, `${f.name} grows stronger`); EW.audio.sfx('level'); EW.toast(`${f.name}: ${f.gains.join(', ')}`, true); break;
       case 'loot': EW.toast(`${f.hero} found ${f.item.name}`, true); break;
-      case 'checkResult': EW.audio.sfx(f.success ? 'heal' : 'miss'); break;
       case 'storySpell': flash(f.dtype); EW.audio.sfx(f.dtype === 'cold' ? 'cold' : f.dtype === 'lightning' ? 'lightning' : f.dtype === 'fire' ? 'fire' : 'heal'); break;
       case 'storyHurt': $('page').animate([{ transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 250 }); EW.audio.sfx('hit'); break;
       case 'rest': EW.audio.sfx('heal'); break;
@@ -369,6 +397,13 @@
       case 'turn': break;
     }
   }
+
+  // the NPC card glows while that NPC is speaking
+  EW.voice.listen((kind, item) => {
+    const npc = $('npcCard');
+    if (!npc || !item.role || item.role.key !== npc.dataset.voice) return;
+    npc.classList.toggle('talking', kind !== 'end');
+  });
 
   function banner(big, small, lose) {
     const b = $('banner');
@@ -475,7 +510,9 @@
       ...info.urls.slice(1).map(u => h('div.invite', u)), info.urls.length < 2 ? h('p.hint', 'No network address found — friends can join over the internet with a tunnel (see README).') : null,
       h('h3', 'Music'),
       h('div.menu-list',
-        h('label.row', h('input', { type: 'checkbox', checked: EW.audio.on, onchange: e => EW.audio.toggle(e.target.checked) }), 'Music & sound effects'),
+        h('label.row', h('input', { type: 'checkbox', checked: EW.audio.on, onchange: e => EW.audio.toggle(e.target.checked) }), 'Music, sound effects & living soundscapes'),
+        h('div.two', h('label.field', h('span', 'Music'), h('input', { type: 'range', min: '0', max: '0.6', step: '0.02', value: EW.audio.vol.music, oninput: e => EW.audio.setVolume('music', parseFloat(e.target.value)) })),
+          h('label.field', h('span', 'Ambience (crowds, fire, rain…)'), h('input', { type: 'range', min: '0', max: '1.4', step: '0.05', value: EW.audio.vol.amb, oninput: e => EW.audio.setVolume('amb', parseFloat(e.target.value)) }))),
         h('label.row', h('input', { type: 'checkbox', checked: meP && meP.autoplay, onchange: e => EW.api('/api/autoplay', { on: e.target.checked }) }), 'Auto-play my hero in battle (for when you step away)')),
       h('h3', 'Voices'), EW.voice.panel(),
       h('h3', 'The tale'),

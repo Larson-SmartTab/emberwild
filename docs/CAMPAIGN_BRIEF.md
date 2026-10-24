@@ -55,6 +55,10 @@ must be clean, well-commented and a pleasure to read and copy from.
 - time: day, dawn, dusk, night · weather: none, rain, emberrain, embers, fog, ash
 - music: tavern, ballad, brawl, explore, camp, grove, eerie, mystery, sorrow, tension, goblin, ruins, battle,
   cindrel, boss, hope, triumph, sea, shanty, snow, dungeon, dragon
+- ambience (optional — otherwise worked out from backdrop, weather and text): crowd, fire, rain, storm, wind, sea,
+  cave, forest, snow, quiet. `.ambience("crowd", "fire")` · `.aside("A line the lore-teller mutters while you linger.")`
+  — a tavern with `crowd` gets rowdy now and then and the lore-teller (or the scene's NPC) hushes it; any scene
+  with a battle choice makes the music turn ominous on its own.
 - battle map tiles: `#` wall · `.` floor · `,` brush (difficult) · `~` water (difficult) · `T` tree (blocks) ·
   `B` barrel/crate (half cover, difficult) · `L` fire/lava hazard · `G` acid/poison pool hazard · `C` chasm
   (impassable, shove enemies in to kill them!) · `I` ice (difficult) · `=` bridge · `^` hidden trap ·

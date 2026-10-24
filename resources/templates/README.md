@@ -46,6 +46,16 @@ can hook into *yours*.
 * **effects** (`op`): `flag`, `unflag`, `item`, `takeItem`, `gold`, `xp`, `heal`, `damage`, `rest`, `level`, `log`,
   `inspiration`, `companion`, `dismiss`, `attitude`, `counter`
 
+## Sound and the lore-teller
+
+Every scene gets a living soundscape worked out from its backdrop, weather and text — a tavern crowd that laughs
+and clinks mugs, crackling fire, rain and thunder, wind, surf and gulls, cave drips, birdsong or crickets and owls.
+Set it yourself with `ambience` (Java: `.ambience("crowd", "fire")`, JSON: `"ambience": ["crowd", "fire"]`) from:
+crowd, fire, rain, storm, wind, sea, cave, forest, snow, quiet.
+
+Give the lore-teller something to say while the party lingers with `aside` (Java: `.aside("Mind the sparks.")`,
+JSON: `"asides": ["Mind the sparks."]`). A scene with a battle choice turns the music ominous by itself.
+
 ## Battle maps
 
 ASCII, up to 32 × 24. `#` wall · `.` floor · `,` brush (difficult) · `~` water (difficult) · `T` tree (blocks) ·

@@ -101,6 +101,8 @@ public final class Campaign implements Json.JsonAble {
         public final Set<String> anchors = new LinkedHashSet<>();
         public String autoGo = "";                 // jump straight on (after onEnter) - for pure narration chains
         public boolean shop = false, checkpoint = false;
+        public final List<String> ambience = new ArrayList<>();   // sound layers: crowd, fire, rain, storm, wind, sea, cave, forest, snow, quiet
+        public final List<String> asides = new ArrayList<>();     // the lore-teller's occasional remarks while the table lingers here
 
         Scene(Campaign owner, String id) { this.owner = owner; this.id = id; }
 
@@ -116,6 +118,10 @@ public final class Campaign implements Json.JsonAble {
         public Scene shop() { shop = true; return this; }
         public Scene checkpoint() { checkpoint = true; return this; }
         public Scene then(String sceneId) { autoGo = sceneId; return this; }
+        /** Background sound layers (otherwise worked out from the backdrop, weather and text): crowd, fire, rain, storm, wind, sea, cave, forest, snow, quiet. */
+        public Scene ambience(String... layers) { ambience.addAll(Arrays.asList(layers)); return this; }
+        /** Things the lore-teller mutters while the party lingers here, e.g. aside("Mind the sparks, they bite."). */
+        public Scene aside(String... lines) { asides.addAll(Arrays.asList(lines)); return this; }
         public Scene onEnter(Map<String, Object>... effects) { onEnter.addAll(Arrays.asList(effects)); return this; }
 
         /** Speaking NPC shown with a portrait card. glyph is any emoji/character. */
@@ -135,7 +141,7 @@ public final class Campaign implements Json.JsonAble {
         @Override public Object toJson() {
             return Json.obj("id", id, "title", title, "chapter", chapter, "backdrop", backdrop, "weather", weather,
                     "time", time, "music", music, "text", text, "npc", npc, "choices", choices, "onEnter", onEnter,
-                    "anchors", anchors, "autoGo", autoGo, "shop", shop, "checkpoint", checkpoint);
+                    "anchors", anchors, "autoGo", autoGo, "shop", shop, "checkpoint", checkpoint, "ambience", ambience, "asides", asides);
         }
     }
 
@@ -331,6 +337,8 @@ public final class Campaign implements Json.JsonAble {
             s.autoGo = Json.str(sm, "autoGo", "");
             s.shop = Json.bool(sm, "shop", false);
             s.checkpoint = Json.bool(sm, "checkpoint", false);
+            s.ambience.addAll(Json.strings(sm, "ambience"));
+            s.asides.addAll(Json.strings(sm, "asides"));
             int n = 0;
             for (Map<String, Object> cm : Json.maps(sm, "choices")) {
                 Choice ch = s.choice(Json.str(cm, "label", "Continue"));

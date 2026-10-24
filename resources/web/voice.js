@@ -13,6 +13,11 @@
   V.save = () => { for (const k in V.cfg) SAVE(k, V.cfg[k]); };
   let server = { tts: false, voices: [] };
   let browserVoices = [], queue = [], playing = null, audio = null;
+  const listeners = [];
+  /** Subscribe to speech events: fn(kind, {role, text, charIndex}) with kind 'start' | 'word' | 'end'. */
+  V.listen = fn => listeners.push(fn);
+  const emit = (k, d) => { for (const fn of listeners) try { fn(k, d); } catch (e) { console.warn(e); } };
+  V.busy = () => !!playing || queue.length > 0;
 
   // ------------------------------------------------------------------ browser voice ranking
   const FEMALE = /(female|woman|aria|jenny|sonia|libby|natasha|samantha|karen|moira|tessa|serena|victoria|fiona|zira|ava|allison|susan|hazel|emma|clara|michelle|elizabeth|amy|joanna|salli|kimberly|ivy|kendra|nicole|olivia|isla|maisie|abbie|bella|hollie|ana\b|catherine|kate|martha|nora|zoe|siri female|kathy|vicki|veena|heera|neerja|ruth|kylie)/i;
@@ -103,7 +108,9 @@
     if (playing || !queue.length) return;
     const item = queue.shift();
     playing = item;
-    const done = () => { playing = null; setTimeout(pump, item.role.key === 'narrator' ? 120 : 220); };
+    emit('start', item);
+    let finished = false;
+    const done = () => { if (finished) return; finished = true; emit('end', item); playing = null; setTimeout(pump, item.role.key === 'narrator' ? 120 : 220); };
     if (V.useNeural()) {
       const voice = castNeural(item.role);
       const url = `/api/tts?voice=${encodeURIComponent(voice || '')}&rate=${(V.cfg.rate * (item.role.rate || 1)).toFixed(2)}&text=${encodeURIComponent(item.text)}`;
@@ -128,6 +135,7 @@
     u.rate = Math.max(.6, Math.min(1.6, V.cfg.rate * (item.role.rate || 1) * (item.role.key === 'narrator' ? .96 : 1.02)));
     u.volume = V.cfg.volume;
     u.onend = done; u.onerror = done;
+    u.onboundary = e => emit('word', { ...item, charIndex: e.charIndex });
     speechSynthesis.speak(u);
     // safety net: some browsers never fire onend
     setTimeout(() => { if (playing === item && !speechSynthesis.speaking) done(); }, 400 + item.text.length * 90);
@@ -135,6 +143,7 @@
 
   V.stop = function () {
     queue = [];
+    if (playing) emit('end', playing);
     playing = null;
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     if (audio) { audio.pause(); audio = null; }
@@ -160,6 +169,19 @@
     if (last < text.length) enqueue(text.slice(last), narr, 1);
   };
 
+  /** The lore-teller's own asides: spoken only if nothing else is being said. Returns true if it was voiced. */
+  V.aside = function (text) {
+    if (!V.cfg.narrator && !V.cfg.dialogue) return false;
+    if (V.busy()) return false;
+    enqueue(text, V.roleFor({ voice: 'narrator' }), 0);
+    return true;
+  };
+  /** Which way the narrator's voice leans, so the lore-teller on screen can match it. */
+  V.narratorGender = function () {
+    if (V.useNeural()) { const v = castNeural({ key: 'narrator', gender: '?' }) || ''; return FEMALE.test(v) || /alba|amy|jenny|kathleen|lessac|cori|kristin|ljspeech|female/i.test(v) ? 'f' : 'm'; }
+    const v = castBrowser({ key: 'narrator', gender: '?' });
+    return v ? (gender(v) === 'f' ? 'f' : 'm') : 'm';
+  };
   V.narrate = function (text) { if (V.cfg.narrator || V.cfg.dialogue) enqueue(text, V.roleFor({ voice: 'narrator' }), 1); };
 
   /** Somebody speaks in character (players or NPCs). */

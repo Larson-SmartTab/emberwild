@@ -1192,7 +1192,7 @@ public final class Game {
             Campaign sceneOwner = registry.get(sceneCampaign);
             sc = Json.obj("id", s.id, "title", s.title, "chapter", s.chapter, "backdrop", s.backdrop, "weather", s.weather, "time", s.time,
                     "music", s.music, "text", fill(s.text, null), "npc", s.npc, "choices", phase.equals("story") ? visibleChoices() : List.of(),
-                    "shop", s.shop, "campaign", sceneCampaign, "campaignTitle", sceneOwner == null ? "" : sceneOwner.title,
+                    "shop", s.shop, "ambience", s.ambience, "asides", s.asides, "campaign", sceneCampaign, "campaignTitle", sceneOwner == null ? "" : sceneOwner.title,
                     "author", sceneOwner == null ? "" : sceneOwner.author);
         }
         List<Object> stock = new ArrayList<>();

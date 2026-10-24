@@ -1160,6 +1160,12 @@ public final class Game {
                 players.put(id, p);
             }
         }
+        // playing alone (e.g. "Continue your last adventure" from a new browser): take up every hero nobody is connected to
+        List<Player> here = players.values().stream().filter(p -> p.connections > 0).toList();
+        if (here.size() == 1) for (Hero h : heroes) {
+            Player o = players.get(h.player);
+            if (!h.npc && (o == null || o.connections == 0)) h.player = here.get(0).id;
+        }
         battlesWon = Json.integer(m, "battlesWon", 0);
         startedAt = (long) Json.dbl(m, "startedAt", System.currentTimeMillis());
         phase = Json.str(m, "phase", "story");

@@ -24,7 +24,7 @@ import java.util.*;
  * </pre>
  */
 public final class Main {
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "2.1.0";
     static final List<String> BUILTIN = List.of("emberwild.story.DrownedCrown", "emberwild.story.FrostfellPact", "emberwild.story.WyrmfireDeep");
 
     public static void main(String[] args) throws Exception {
@@ -165,6 +165,13 @@ public final class Main {
     static void seedExamples(Path dir) {
         try {
             Files.createDirectories(dir);
+            Path starters = dir.resolve("starters");
+            Files.createDirectories(starters);
+            for (String f : List.of("MyDrownedCrown.java", "MyFrostfellPact.java", "MyWyrmfireDeep.java")) {
+                try (InputStream in = Main.class.getResourceAsStream("/templates/starters/" + f)) {
+                    if (in != null && !Files.exists(starters.resolve(f))) Files.copy(in, starters.resolve(f));
+                }
+            }
             Path marker = dir.resolve(".seeded");
             if (Files.exists(marker)) return;
             for (String f : List.of("TheSunkenBell.java", "the_lost_lantern.json")) {

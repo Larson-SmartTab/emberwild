@@ -2175,7 +2175,7 @@ public final class Combat {
         for (Monsters.Special s : d.specials) {
             if (s.shape.equals("heal") || !u.ready.getOrDefault(s.id, true)) continue;
             if (s.uses > 0 && u.uses.getOrDefault(s.id, 0) <= 0) continue;
-            if (s.id.equals("wing_gust") && u.isBoss()) continue; // saved for legendary actions
+            if (u.isBoss() && (s.id.equals("wing_gust") || d.legendaryActions.contains("special:" + s.id))) continue; // saved for legendary actions
             if (s.shape.equals("summon")) {
                 long allies = units.stream().filter(o -> o.side.equals(u.side) && o.active() && !o.isObject()).count();
                 if (allies < 3) { useSpecial(u, s, u.x, u.y); return; }
@@ -2183,7 +2183,7 @@ public final class Combat {
             }
             int[] best = bestAreaAim(u, s);
             if (best != null && best[2] >= (u.isBoss() ? 1 : 2)) {
-                if (s.shape.equals("cone") || s.range == 0) {
+                if (s.shape.equals("cone") || s.shape.equals("line") || s.range == 0) {
                     // get close enough first
                     Unit near = pickTarget(u, false);
                     if (near != null && dist(u, near) > s.size / 5) { approach(u, near, Math.max(1, s.size / 5 - 1)); best = bestAreaAim(u, s); }
@@ -2248,7 +2248,7 @@ public final class Combat {
         int[] best = null;
         List<int[]> aims = new ArrayList<>();
         for (Unit f : foesOf(u)) if (!f.isObject()) aims.add(new int[]{f.x, f.y});
-        if (s.range == 0 && !s.shape.equals("cone")) aims = List.of(new int[]{u.x, u.y});
+        if (s.range == 0 && !s.shape.equals("cone") && !s.shape.equals("line")) aims = List.of(new int[]{u.x, u.y});
         for (int[] a : aims) {
             List<int[]> cells = switch (s.shape) {
                 case "cone" -> coneCells(u, a[0], a[1], s.size / 5);
@@ -2386,14 +2386,15 @@ public final class Combat {
         // weapon attack
         if (wp.ranged) {
             if (feet(u, t) > wp.range || !los(u, t)) kite(u, t, wp.range / 5);
-            if (feet(u, t) <= wp.longRange && los(u, t)) { doAttack(u, t); while (u.attacksLeft > 0 && t.active()) doAttack(u, t); }
+            if (feet(u, t) <= wp.longRange && los(u, t)) { if (doAttack(u, t) == null) while (u.attacksLeft > 0 && t.active()) if (doAttack(u, t) != null) break; }
         } else {
             if (approach(u, t, 1)) {
                 if (hr.classId.equals("barbarian") && hr.hasFeature("reckless_attack")) u.reckless = true;
                 doAttack(u, t);
                 while (u.attacksLeft > 0 && u.active()) {
-                    if (!t.active()) { t = pickTarget(u, false); if (t == null || !approach(u, t, 1)) break; }
-                    doAttack(u, t);
+                    // a target shoved out of reach (Push mastery) must be re-approached; stop if an attack is refused
+                    if (!t.active() || dist(u, t) > 1) { if (t.active() && approach(u, t, 1)) {} else { t = pickTarget(u, false); if (t == null || !approach(u, t, 1)) break; } }
+                    if (doAttack(u, t) != null) break;
                 }
                 if (hr.res("action_surge") > 0 && t.active() && !u.action && hr.classId.equals("fighter")) { doFeature(u, Json.obj("id", "action_surge")); if (t.active()) doAttack(u, t); }
             } else if (wp.thrown && feet(u, t) <= wp.longRange && los(u, t)) doAttack(u, t);

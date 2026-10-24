@@ -12,6 +12,7 @@
     EW.me.id = r.id; EW.me.name = r.name; EW.me.host = r.host;
     localStorage.setItem('ew.pid', r.id); localStorage.setItem('ew.name', r.name);
     EW.api('/api/info', undefined, { quiet: true }).then(i => { if (i && i.urls) EW.voice.setServer(i); });
+    EW.api('/api/saves', undefined, { quiet: true }).then(r => { EW._hasAutosave = r && (r.saves || []).includes('autosave'); if (S) renderLobby(); });
     $('joinBox').classList.add('hidden');
     $('lobbyMain').classList.remove('hidden');
     connect();
@@ -89,6 +90,8 @@
     // campaigns
     const cl = $('campaignList'); cl.innerHTML = '';
     const inGame = S.phase !== 'lobby' && S.campaign;
+    if (!inGame && EW.me.host && EW._hasAutosave) cl.append(h('div.panel', { style: { marginBottom: '6px' } }, h('p', 'Your last adventure was saved automatically.'),
+      h('button.btn.primary', { onclick: async () => { const r = await EW.api('/api/load', { name: 'autosave' }); if (r.ok) { showLobby = false; lastSceneKey = ''; } } }, 'Continue your last adventure')));
     if (inGame) cl.append(h('div.panel', { style: { marginBottom: '6px' } }, h('p', `A tale is under way: `, h('b', S.campaign.title), '.'), h('button.btn.primary', { onclick: () => { showLobby = false; applyState(S); } }, 'Return to the table')));
     for (const c of S.campaigns) {
       const cover = h('canvas');

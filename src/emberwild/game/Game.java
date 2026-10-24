@@ -894,7 +894,8 @@ public final class Game {
             enter(sceneCampaign, "@checkpoint", false);
             return;
         }
-        if (!won) for (Hero h : heroes) { if (!h.dead && h.hp <= 0) h.hp = 1; }
+        // a story-continuing defeat: survivors limp on with at least half their hit points, so one loss doesn't chain into the next
+        if (!won) for (Hero h : heroes) { if (!h.dead) h.hp = Math.max(h.hp, Math.max(1, h.maxHp / 2)); }
         applyOutcome(o, actorFor(null), won);
         if (o != null && o.go().isEmpty() && !ch.go.isEmpty()) enter(sceneCampaign, ch.go, true);
         autosave();

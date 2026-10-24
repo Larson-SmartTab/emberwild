@@ -1,0 +1,5 @@
+build/
+saves/
+campaigns/pending/
+*.class
+.DS_Store

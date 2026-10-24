@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emberwild</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<canvas id="backdrop" aria-hidden="true"></canvas>
+
+<header id="topbar">
+  <div class="brand"><span class="sigil" aria-hidden="true">🔥</span><span id="campaignTitle">Emberwild</span></div>
+  <div id="chapterLine"></div>
+  <nav class="tools">
+    <div id="playersOnline" class="players"></div>
+    <button id="btnDice" class="tool" title="Dice tray (D)">🎲 <span>Dice</span></button>
+    <button id="btnSheet" class="tool" title="Your character sheet (C)">📜 <span>Sheet</span></button>
+    <button id="btnForge" class="tool" title="Campaign Forge">⚒ <span>Forge</span></button>
+    <button id="btnMenu" class="tool" title="Settings, saves & invite">☰</button>
+  </nav>
+</header>
+
+<main id="app">
+  <!-- LOBBY -->
+  <section id="lobby" class="view">
+    <div class="lobby-hero">
+      <h1 class="title-art">Emberwild</h1>
+      <p class="tagline">A tavern, a forest on fire, and a tyrant waking under the hills. Pull up a chair.</p>
+    </div>
+    <div id="joinBox" class="panel joinbox">
+      <label for="nameInput">What should the table call you?</label>
+      <div class="row"><input id="nameInput" maxlength="24" placeholder="Your name" autocomplete="nickname"><button id="joinBtn" class="btn primary">Sit down</button></div>
+    </div>
+    <div id="lobbyMain" class="lobby-grid hidden">
+      <div class="panel">
+        <h2>Your party</h2>
+        <div id="lobbyParty" class="lobby-party"></div>
+        <div class="row wrap gap">
+          <button id="btnBuild" class="btn primary">Create a hero</button>
+          <label class="btn ghost file">Import hero file<input type="file" id="importHero" accept=".json"></label>
+        </div>
+        <h3>Or take a ready-made hero</h3>
+        <div id="pregenList" class="pregens"></div>
+      </div>
+      <div class="panel">
+        <h2>Choose a tale</h2>
+        <div id="campaignList" class="campaigns"></div>
+        <p class="hint" id="startHint"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TABLE -->
+  <section id="table" class="view hidden">
+    <aside id="partyPanel" class="side"></aside>
+    <div id="stage">
+      <div id="story" class="story">
+        <article id="page" class="page">
+          <div id="npcCard" class="npc hidden"></div>
+          <h2 id="sceneTitle"></h2>
+          <div id="sceneText" class="narration"></div>
+          <div id="outcome" class="outcome hidden"></div>
+        </article>
+        <div id="rollPrompt" class="roll-prompt hidden"></div>
+        <ol id="choices" class="choices"></ol>
+        <div id="voteInfo" class="vote-info"></div>
+        <div id="shop" class="shop hidden"></div>
+      </div>
+      <div id="battle" class="battle hidden">
+        <div class="battle-head">
+          <div><h2 id="battleTitle"></h2><div id="battleObjective" class="objective"></div></div>
+          <div id="initiative" class="initiative"></div>
+        </div>
+        <div class="battle-body">
+          <div id="mapWrap" class="map-wrap"><canvas id="map"></canvas><div id="tooltip" class="tooltip hidden"></div></div>
+        </div>
+        <div id="actionBar" class="action-bar"></div>
+      </div>
+      <div id="ending" class="ending hidden"></div>
+    </div>
+    <aside id="logPanel" class="side log">
+      <div id="log" class="log-list" aria-live="polite"></div>
+      <form id="chatForm" class="chat"><input id="chatInput" placeholder="Talk, or /roll 2d6+3" autocomplete="off" maxlength="400"><button class="btn small">Send</button></form>
+    </aside>
+  </section>
+</main>
+
+<!-- overlays -->
+<div id="diceLayer" class="dice-layer" aria-hidden="true"><canvas id="diceCanvas"></canvas><div id="diceResult" class="dice-result"></div></div>
+<div id="diceTray" class="drawer hidden">
+  <h3>Dice tray</h3>
+  <p class="hint">Everyone at the table sees your roll.</p>
+  <div class="dice-buttons" id="diceButtons"></div>
+  <form id="diceForm" class="row"><input id="diceExpr" value="1d20" aria-label="Dice expression"><button class="btn primary">Roll</button></form>
+</div>
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-box"><button class="close" id="modalClose" aria-label="Close">✕</button><div id="modalBody"></div></div></div>
+<div id="toasts" class="toasts"></div>
+<div id="banner" class="banner hidden"></div>
+
+<script src="/static/util.js"></script>
+<script src="/static/audio.js"></script>
+<script src="/static/scene.js"></script>
+<script src="/static/dice3d.js"></script>
+<script src="/static/battle.js"></script>
+<script src="/static/builder.js"></script>
+<script src="/static/forge.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

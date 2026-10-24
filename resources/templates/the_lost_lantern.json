@@ -1,0 +1,82 @@
+{
+  "id": "lost_lantern",
+  "title": "The Lost Lantern",
+  "author": "Example Author",
+  "version": "1.0",
+  "synopsis": "A tiny lantern-sprite begs the party to recover her stolen light from a band of goblins and their bad-tempered boar. A JSON example campaign that hooks into the core campaign's night camp.",
+  "cover": "camp",
+  "start": "sprite",
+  "hooks": [
+    { "anchor": "camp", "label": "Follow the tiny, sobbing light at the edge of camp", "entry": "sprite" }
+  ],
+  "monsters": [
+    {
+      "id": "thornback_boar", "name": "Thornback Boar", "type": "beast", "role": "brute",
+      "size": 1, "ac": 12, "hp": 22, "speed": 40, "cr": 0.5, "xp": 100,
+      "scores": { "str": 15, "dex": 10, "con": 14, "int": 2, "wis": 9, "cha": 5 },
+      "attacks": [ { "name": "Tusk Charge", "toHit": 4, "damage": "1d8+2", "type": "slashing", "rider": "prone", "riderSave": "str", "riderDC": 12 } ],
+      "traits": ["aggressive"],
+      "color": "#6d4c41", "glyph": "🐗", "blurb": "Bristles like briars, temper like a kicked hornet's nest."
+    }
+  ],
+  "scenes": {
+    "sprite": {
+      "title": "A Light in Tears", "chapter": "The Lost Lantern", "backdrop": "camp", "time": "night", "music": "camp",
+      "npc": { "name": "Flicker", "title": "Lantern-Sprite", "color": "#ffd54f", "glyph": "🏮", "line": "They took my light! Without it I'll go out by morning!" },
+      "text": [
+        "A sprite no bigger than your thumb hovers at the edge of the firelight, glowing dimmer by the minute.",
+        "\"Goblins!\" she squeaks. \"They stole my lantern to light their stew-pot. And they have a PIG.\""
+      ],
+      "choices": [
+        { "label": "Track the goblins", "icon": "🐾", "check": "survival", "dc": 12,
+          "pass": { "text": "Muddy goblin prints and a trail of dropped turnips lead straight to a hollow log.", "go": "camp_goblins", "effects": [ { "op": "flag", "flag": "goblins_tracked" } ] },
+          "fail": { "text": "You wander in circles until Flicker sighs and points. \"That way. Obviously.\"", "go": "camp_goblins" } },
+        { "label": "Politely decline", "icon": "↩", "go": "@return" }
+      ]
+    },
+    "camp_goblins": {
+      "title": "The Stew-Pot", "chapter": "The Lost Lantern", "backdrop": "forest", "time": "night", "music": "goblin",
+      "text": "Three goblins argue over a bubbling pot hung above Flicker's stolen lantern. Tied to a stump, a huge thorn-backed boar glares at everyone equally.",
+      "choices": [
+        { "label": "Sneak in and grab the lantern", "icon": "🌑", "check": "stealth", "dc": 13, "mode": "chooser",
+          "pass": { "text": "You pluck the lantern from under their noses and vanish into the dark. The goblins are still arguing about the soup.", "go": "lantern_home", "effects": [ { "op": "xp", "amount": 100 } ] },
+          "fail": { "text": "A twig snaps. Three goblin heads turn. Somebody cuts the boar loose.", "go": "lantern_fight" } },
+        { "label": "Charge!", "icon": "⚔", "go": "lantern_fight" }
+      ]
+    },
+    "lantern_fight": {
+      "title": "Goblins and a Very Angry Boar", "chapter": "The Lost Lantern", "backdrop": "forest", "time": "night", "music": "battle",
+      "text": "The boar squeals with joy. It has been waiting all its life for this.",
+      "choices": [
+        { "label": "Fight!", "icon": "⚔", "battle": "lantern_battle",
+          "victory": { "text": "The goblins flee into the night, and the boar, defeated, eats their soup.", "go": "lantern_home" },
+          "defeat": { "text": "You limp away. Flicker sneaks back alone and steals the lantern back herself while the goblins celebrate.", "go": "lantern_home" } }
+      ]
+    },
+    "lantern_home": {
+      "title": "Light Restored", "chapter": "The Lost Lantern", "backdrop": "camp", "time": "night", "music": "hope",
+      "npc": { "name": "Flicker", "title": "Lantern-Sprite", "color": "#ffd54f", "glyph": "🏮", "line": "My light! My beautiful light! Oh, thank you, thank you!" },
+      "text": "Flicker dives into her lantern and blazes up so bright the whole camp glows gold. Before she flies off, she leaves a little gift by your bedroll.",
+      "onEnter": [ { "op": "item", "item": "potion_healing" }, { "op": "gold", "amount": 10 }, { "op": "inspiration" } ],
+      "choices": [ { "label": "Return to camp", "icon": "↩", "go": "@return" } ]
+    }
+  },
+  "encounters": {
+    "lantern_battle": {
+      "title": "The Stew-Pot Skirmish", "backdrop": "forest", "music": "goblin",
+      "intro": "Goblins scatter for their bows while the boar charges straight at you.",
+      "map": [
+        "TTTTTTTTTTTTTTTTTT",
+        "T,,,,,,,,,,,,,,,,T",
+        "T,,g,,,,B,,,,g,,,T",
+        "T,,,,,,,L,,,,,,,,T",
+        ",,,,,,,b,,,,,a,,,,",
+        ",,,,,,,,,,,,,,,,,,",
+        "T,,,,PP,,PP,,,,,,T",
+        "TTTTTTTTTTTTTTTTTT"
+      ],
+      "legend": { "g": "goblin", "a": "goblin_archer", "b": "thornback_boar" },
+      "extraPerHero": ["goblin"]
+    }
+  }
+}

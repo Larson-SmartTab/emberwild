@@ -153,6 +153,7 @@ public final class Hero implements Json.JsonAble {
     public Set<String> resistances() {
         Set<String> r = new HashSet<>(Species.resistances(speciesId, lineageId));
         if (itemBonus("resist_fire") > 0) r.add("fire");
+        if (itemBonus("resist_cold") > 0) r.add("cold");
         if (resources.containsKey("raging_now") && resources.get("raging_now") > 0) {
             r.add("bludgeoning"); r.add("piercing"); r.add("slashing");
         }

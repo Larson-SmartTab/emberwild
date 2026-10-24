@@ -126,6 +126,7 @@ public final class Items {
         i("cloak_of_protection", "Cloak of Protection", "wondrous", "+1 to Armor Class and saving throws.").attune().bonus("ac", 1).bonus("save", 1).value(500);
         i("thornwood_circlet", "Thornwood Circlet", "wondrous", "A living crown of briar and moonflower given by the dryad Eloweth. +1 to Charisma checks and +5 ft Speed.").attune().bonus("cha_check", 1).bonus("speed", 5).value(400);
         i("ring_of_the_hearth", "Ring of the Hearth", "ring", "A brass band warm to the touch. Resistance to fire damage.").attune().bonus("resist_fire", 1).value(600);
+        i("cloak_of_the_hearthfire", "Cloak of the Hearthfire", "cloak", "Thick wool lined with ember-red thread that never cools. Resistance to cold damage.").attune().bonus("resist_cold", 1).value(500);
         i("weapon_plus_one", "Runed Blade (+1)", "weapon", "A weapon etched with Thornreach runes. +1 to weapon attack and damage rolls.").attune().bonus("attack", 1).bonus("damage", 1).value(500);
         i("boots_of_the_fen", "Boots of the Fen", "wondrous", "Moss-soft boots. Ignore difficult terrain; +1 initiative.").attune().bonus("ignore_difficult", 1).bonus("initiative", 1).value(300);
         i("amulet_of_vitality", "Amulet of Vitality", "wondrous", "A heartwood pendant. +1 hit point per level and +1 Constitution saves.").attune().bonus("hp_per_level", 1).bonus("con_save", 1).value(400);

@@ -451,14 +451,15 @@ public final class Combat {
             else game.log(enc.nonlethal ? u.name + " is knocked out cold!" : u.name + " falls!", "good");
             dropConcentration(u);
             if (u.def.traits.contains("death_burst") && !enc.nonlethal) {
-                game.log(u.name + " explodes in a burst of molten slag!", "warn");
-                game.fx(Json.obj("t", "area", "shape", "sphere", "cells", sphereCells(u.x, u.y, 1), "dtype", "fire", "from", u.id));
+                String bt = u.def.immune.contains("cold") || u.def.name.toLowerCase().contains("ice") ? "cold" : "fire";
+                game.log(u.name + (bt.equals("cold") ? " bursts into a spray of razor-sharp ice!" : " explodes in a burst of molten slag!"), "warn");
+                game.fx(Json.obj("t", "area", "shape", "sphere", "cells", sphereCells(u.x, u.y, 1), "dtype", bt, "from", u.id));
                 for (Unit t : new ArrayList<>(units)) {
                     if (t == u || !t.alive() || t.down() || dist(u, t) > 1) continue;
                     Dice.Roll s = Dice.d20(t.saveBonus(Ability.DEX), false, false, false);
                     int d = Dice.roll("2d4").total;
                     if (s.total >= 11) d /= 2;
-                    damage(t, d, "fire", null, false, "Death Burst");
+                    damage(t, d, bt, null, false, "Death Burst");
                 }
             }
         }

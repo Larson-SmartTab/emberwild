@@ -797,7 +797,7 @@ public final class Game {
             case "level" -> {
                 int lvl = Json.integer(f, "level", 2);
                 for (Hero h : heroes) if (h.level < lvl) { h.xp = Math.max(h.xp, Hero.xpForLevel(lvl)); }
-                checkLevels();
+                checkLevels(Math.min(Hero.MAX_LEVEL, lvl));
             }
             case "log", "say" -> log(fill(Json.str(f, "text", ""), actor), "narration");
             case "inspiration" -> { if (actor != null) { actor.inspiration = true; log("✨ " + actor.name + " gains Heroic Inspiration! (A failed check will be rerolled.)", "good"); } }
@@ -840,9 +840,12 @@ public final class Game {
         return id;
     }
 
-    void checkLevels() {
+    void checkLevels() { checkLevels(3); }
+
+    /** XP alone advances heroes to level 3; story milestones (Fx.level) may lift that cap up to Hero.MAX_LEVEL. */
+    void checkLevels(int cap) {
         for (Hero h : heroes) {
-            while (h.level < 3 && h.xp >= Hero.xpForLevel(h.level + 1)) {
+            while (h.level < Math.max(3, cap) && h.xp >= Hero.xpForLevel(h.level + 1)) {
                 List<String> gains = h.levelUp(h.level + 1);
                 log("⭐ LEVEL UP! " + h.name + " reaches level " + h.level + ": " + String.join(", ", gains), "level");
                 fx(Json.obj("t", "levelUp", "hero", h.id, "name", h.name, "level", h.level, "gains", gains));

@@ -4,7 +4,7 @@ A multiplayer D&D campaign engine written in Java. One person hosts; everyone el
 Windows, Mac, Linux, a tablet or a phone. Java runs the whole game: the 2024 rules, dice, story, tactical
 combat, enemy AI, saves and the web server. The browser only draws it.
 
-It ships with **four full campaigns** (each roughly 1–2 hours) that link together into one long saga:
+It ships with **five full campaigns** (each roughly 1–2 hours) that link together into one long saga:
 
 | Tale | Levels | Highlights | Final boss |
 |---|---|---|---|
@@ -12,6 +12,10 @@ It ships with **four full campaigns** (each roughly 1–2 hours) that link toget
 | **The Drowned Crown** | 1 → 3 | Shanty contests & crab races, a haunted lighthouse, sahuagin, a ghost ship | Mother Brine, the sea hag |
 | **The Frostfell Pact** | 2 → 4 | Lantern festival, ice bridges & avalanches, riddle doors, a gentle ending if you earn it | Isolde, the Winter Queen |
 | **Wyrmfire Deep** | 3 → 5 | Mining town, kobolds you can befriend, pendulum halls, a legendary sword | **Nyxathrax, a young black dragon on her hoard** 🐉 |
+| **The Gem, a story by Joel Hill** | 1 → 3 | A jungle trading post, the Temple of the Lost Sun, the riddle of the echo, three doors, a secret merchant | The Cursed King |
+
+*The Gem* began as Joel Hill's console adventure for the team's Java challenge — his first Java program — and was
+rebuilt on the Emberwild engine with his story, his scenes and his jokes intact.
 
 The star of the show is the pre-made hero **Sylwen Ashbloom**, a charming wood elf wizard who solves problems
 with fire, frost, lightning and a smile. Every tale also has its own pre-made heroes and companions.
@@ -92,6 +96,52 @@ objects that feed them (smash the idols, totems or eggs!).
 
 ---
 
+## Hosting on your own website
+
+Emberwild is a single Java program with its own web server, so the usual way to put it on a company site is a
+**reverse proxy**: your web server forwards a path such as `https://yoursite.example/emberwild/` to Emberwild.
+It works at the root of a site or under any sub-path, live updates stream through the proxy, and every player just
+opens the page — nothing to install.
+
+1. **Run Emberwild on the web server** (Java 21+), listening only on the machine itself, with a secret host key:
+
+   ```
+   java -jar emberwild.jar --no-browser --bind 127.0.0.1 --port 7777 --host-key YOUR-SECRET --home /srv/emberwild
+   ```
+
+   Or with Docker: `docker build -t emberwild .` then
+   `docker run -d -p 127.0.0.1:7777:7777 -e EMBERWILD_HOST_KEY=YOUR-SECRET -v emberwild-data:/data emberwild`.
+2. **Forward a path to it.** nginx:
+
+   ```nginx
+   location /emberwild/ {
+       proxy_pass http://127.0.0.1:7777/emberwild/;
+       proxy_http_version 1.1;
+       proxy_set_header Host $host;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+       proxy_buffering off;            # live updates (Server-Sent Events)
+       proxy_read_timeout 1h;
+   }
+   ```
+
+   IIS: install *URL Rewrite* + *Application Request Routing*, enable the proxy, and add a rewrite rule from
+   `emberwild/(.*)` to `http://127.0.0.1:7777/emberwild/{R:1}`; set the ARR response-buffer threshold to 0 so live
+   updates aren't held back. Apache: `ProxyPass /emberwild/ http://127.0.0.1:7777/emberwild/ flushpackets=on`.
+   (Stripping the prefix instead also works.)
+3. **Become the host:** open `https://yoursite.example/emberwild/?host=YOUR-SECRET` once. That browser is the host
+   (start tales, load saves, approve uploaded Java campaigns, set up the AI DM); the key disappears from the address
+   bar and is remembered. Everyone else simply opens `https://yoursite.example/emberwild/`. Hosts can also enter the
+   key later in ☰ → *I have the host key*.
+4. **Embedding in a page** (optional): `<iframe src="/emberwild/" allow="microphone; autoplay; fullscreen"
+   style="width:100%;height:90vh;border:0"></iframe>` — the `allow` list keeps speech input and sound working.
+
+Your site's own login protects the page; Emberwild never sees passwords. Requests that arrive through a proxy are
+never treated as "local", so only key-holders get host powers. Upgrading = replace `emberwild.jar` and restart;
+saves and campaigns live in the `--home` folder and are kept.
+
+---
+
 ## The AI Dungeon Master (optional)
 
 Out of the box, NPCs answer your in-character lines with a built-in rules engine. Plug in a language model and
@@ -153,7 +203,7 @@ Your teammates can add campaigns three ways, and they all **mesh**: every tale c
 | **Campaign Forge** (⚒ in the top bar) | A visual editor in the browser: scenes, choices, checks, battle maps. Publishes straight into the realm. |
 | **JSON** file in `campaigns/` | Hand-written data. Example: `campaigns/the_lost_lantern.json` |
 | **Java** file in `campaigns/` | The real challenge. Implement `CampaignScript` with the same fluent DSL the core campaign uses. Example: `campaigns/TheSunkenBell.java` |
-| **Starter templates** in `campaigns/starters/` | Complete copies of The Drowned Crown, The Frostfell Pact and Wyrmfire Deep. Copy one up into `campaigns/`, rename the class and id, and rewrite it into your own full-length tale. |
+| **Starter templates** in `campaigns/starters/` | Complete copies of The Drowned Crown, The Frostfell Pact, Wyrmfire Deep and The Gem. Copy one up into `campaigns/`, rename the class and id, and rewrite it into your own full-length tale. |
 
 A Java tale looks like this:
 
@@ -203,7 +253,7 @@ src/emberwild/
   Main.java                 command line, start-up, browser launch
   rules/                    2024 rules data and maths: Dice, Hero, Classes, Species, Backgrounds, Spells, Items, Monsters
   story/                    Campaign model + fluent DSL, Fx effects, loader/validator/compiler, the core campaign (Emberwild.java)
-  story/*.java              the four built-in tales: Emberwild, DrownedCrown, FrostfellPact, WyrmfireDeep
+  story/*.java              the five built-in tales: Emberwild, DrownedCrown, FrostfellPact, WyrmfireDeep, TheGem (by Joel Hill)
   game/                     Game (shared table, votes, checks, effects, saves), Combat (tactical engine + AI), Unit,
                             DungeonMaster (rules / Ollama / OpenAI-compatible / Anthropic), SelfTest
   server/WebServer.java     zero-dependency HTTP + Server-Sent Events (JDK HttpServer, virtual threads)
@@ -216,6 +266,6 @@ resources/templates/        example campaigns and starter templates copied into 
 - **No dependencies.** Plain JDK 21. Build with `./build.sh` (macOS/Linux) or `build.bat` (Windows).
 - **Self-test:** `java -jar emberwild.jar --selftest 9 [campaign_id]` lets the AI play a whole campaign nine
   times with one to three heroes and prints per-battle win rates. All runs must reach the end.
-- Command-line options: `--port N`, `--no-browser`, `--home DIR`, `--validate FILE`, `--selftest [N] [id]`,
+- Command-line options: `--port N`, `--bind ADDRESS`, `--host-key KEY`, `--no-browser`, `--home DIR`, `--validate FILE`, `--selftest [N] [id]`,
   `--battletest ID ENCOUNTER LEVEL [flags|none] [runs]`, `--ai`, `--ai-model`, `--ai-url`, `--piper`, `--voices`.
 - All dice are rolled on the server with `SecureRandom`; clients only animate the results they're sent.

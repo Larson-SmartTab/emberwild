@@ -2,13 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>/* hosted under a sub-path (e.g. /emberwild)? make sure the page URL ends in "/" so relative links resolve */
+if (!/\/$|\.html$/.test(location.pathname)) location.replace(location.pathname + '/' + location.search + location.hash);</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Emberwild</title>
-<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="static/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="static/style.css">
 </head>
 <body>
 <canvas id="backdrop" aria-hidden="true"></canvas>
@@ -119,17 +121,17 @@
 <div id="toasts" class="toasts"></div>
 <div id="banner" class="banner hidden"></div>
 
-<script src="/static/util.js"></script>
-<script src="/static/audio.js"></script>
-<script src="/static/voice.js"></script>
-<script src="/static/scene.js"></script>
-<script src="/static/dice3d.js"></script>
-<script src="/static/figures.js"></script>
-<script src="/static/battle.js"></script>
-<script src="/static/builder.js"></script>
-<script src="/static/forge.js"></script>
-<script src="/static/storyfx.js"></script>
-<script src="/static/loreteller.js"></script>
-<script src="/static/app.js"></script>
+<script src="static/util.js"></script>
+<script src="static/audio.js"></script>
+<script src="static/voice.js"></script>
+<script src="static/scene.js"></script>
+<script src="static/dice3d.js"></script>
+<script src="static/figures.js"></script>
+<script src="static/battle.js"></script>
+<script src="static/builder.js"></script>
+<script src="static/forge.js"></script>
+<script src="static/storyfx.js"></script>
+<script src="static/loreteller.js"></script>
+<script src="static/app.js"></script>
 </body>
 </html>

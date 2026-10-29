@@ -7,12 +7,12 @@
 
   // ================================================================ join & connection
   async function join(name) {
-    const r = await EW.api('/api/join', { id: EW.me.id || null, name });
+    const r = await EW.api('api/join', { id: EW.me.id || null, name, hostKey: EW.hostKey() || undefined });
     if (!r.ok) return;
     EW.me.id = r.id; EW.me.name = r.name; EW.me.host = r.host;
     localStorage.setItem('ew.pid', r.id); localStorage.setItem('ew.name', r.name);
-    EW.api('/api/info', undefined, { quiet: true }).then(i => { if (i && i.urls) EW.voice.setServer(i); });
-    EW.api('/api/saves', undefined, { quiet: true }).then(r => { EW._hasAutosave = r && (r.saves || []).includes('autosave'); if (S) renderLobby(); });
+    EW.api('api/info', undefined, { quiet: true }).then(i => { if (i && i.urls) EW.voice.setServer(i); });
+    EW.api('api/saves', undefined, { quiet: true }).then(r => { EW._hasAutosave = r && (r.saves || []).includes('autosave'); if (S) renderLobby(); });
     $('joinBox').classList.add('hidden');
     $('lobbyMain').classList.remove('hidden');
     connect();
@@ -20,7 +20,7 @@
 
   function connect() {
     if (es) es.close();
-    es = new EventSource('/api/events?pid=' + encodeURIComponent(EW.me.id));
+    es = new EventSource('api/events?pid=' + encodeURIComponent(EW.me.id));
     es.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
       if (m.state) applyState(m.state);
@@ -93,7 +93,7 @@
     const cl = $('campaignList'); cl.innerHTML = '';
     const inGame = S.phase !== 'lobby' && S.campaign;
     if (!inGame && EW.me.host && EW._hasAutosave) cl.append(h('div.panel', { style: { marginBottom: '6px' } }, h('p', 'Your last adventure was saved automatically.'),
-      h('button.btn.primary', { onclick: async () => { const r = await EW.api('/api/load', { name: 'autosave' }); if (r.ok) { showLobby = false; lastSceneKey = ''; } } }, 'Continue your last adventure')));
+      h('button.btn.primary', { onclick: async () => { const r = await EW.api('api/load', { name: 'autosave' }); if (r.ok) { showLobby = false; lastSceneKey = ''; } } }, 'Continue your last adventure')));
     if (inGame) cl.append(h('div.panel', { style: { marginBottom: '6px' } }, h('p', `A tale is under way: `, h('b', S.campaign.title), '.'), h('button.btn.primary', { onclick: () => { showLobby = false; applyState(S); } }, 'Return to the table')));
     for (const c of S.campaigns) {
       const cover = h('canvas');
@@ -109,10 +109,10 @@
     $('startHint').textContent = mine.length ? `${S.heroes.filter(x => !x.npc).length} hero(es) ready. Companions join automatically if your party is small.` : 'Bring a hero to the table, then choose a tale.';
   }
 
-  async function claim(cid, pid) { const r = await EW.api('/api/hero/pregen', { campaign: cid, id: pid }); if (r.ok) EW.toast('Hero claimed!', true); }
+  async function claim(cid, pid) { const r = await EW.api('api/hero/pregen', { campaign: cid, id: pid }); if (r.ok) EW.toast('Hero claimed!', true); }
   async function begin(c) {
     if (S.phase !== 'lobby' && S.campaign && !confirm(`Abandon “${S.campaign.title}” and start “${c.title}”? (Use the menu to save first.)`)) return;
-    const r = await EW.api('/api/start', { campaign: c.id });
+    const r = await EW.api('api/start', { campaign: c.id });
     if (r.ok) { showLobby = false; lastSceneKey = ''; }
   }
 
@@ -121,7 +121,7 @@
     const f = e.target.files[0]; if (!f) return;
     try {
       const j = JSON.parse(await f.text());
-      const r = j.spec ? await EW.api('/api/hero/create', { spec: j.spec }) : await EW.api('/api/hero/import', { hero: j.hero || j });
+      const r = j.spec ? await EW.api('api/hero/create', { spec: j.spec }) : await EW.api('api/hero/import', { hero: j.hero || j });
       if (r.ok) EW.toast('Hero imported!', true);
     } catch (err) { EW.toast('That file is not a hero file: ' + err.message); }
     e.target.value = '';
@@ -151,7 +151,7 @@
     if (hero.mageArmor) extra.push(h('span.cond.good', 'mage armor'));
     if (hero.dead) extra.push(h('span.cond.bad', 'dead'));
     if (conds.length || extra.length) card.append(h('div.conds', extra, conds.filter(c => !['ending', 'autoplaying', 'savage_used', 'cleaved', 'barked_bloodied'].includes(c)).map(c => h('span.cond.' + (EW.condClass(c) || 'x'), EW.condLabel(c)))));
-    if (lobby && (hero.player === EW.me.id || EW.me.host) && !hero.npc) card.append(h('button.btn.small.ghost', { style: { marginTop: '6px' }, onclick: async e => { e.stopPropagation(); if (confirm(`Remove ${hero.name} from the party?`)) await EW.api('/api/hero/remove', { hero: hero.id }); } }, 'Remove'));
+    if (lobby && (hero.player === EW.me.id || EW.me.host) && !hero.npc) card.append(h('button.btn.small.ghost', { style: { marginTop: '6px' }, onclick: async e => { e.stopPropagation(); if (confirm(`Remove ${hero.name} from the party?`)) await EW.api('api/hero/remove', { hero: hero.id }); } }, 'Remove'));
     return card;
   }
 
@@ -216,7 +216,7 @@
       const mine = p.player === EW.me.id;
       const row = h('div.roll-row', h('div', h('div.who', p.label), h('div.hint', `${EW.sign(p.bonus)} bonus${p.adv ? ' · Advantage' : ''}${hero.inspiration ? ' · Heroic Inspiration will reroll a failure' : ''} · ${p.playerName}`)));
       if (p.done) row.append(h('span.roll-done', '🎲 ' + p.total));
-      else if (mine || EW.me.host) row.append(h('button.btn.primary.roll-btn', { onclick: () => EW.api('/api/roll', { hero: p.hero }) }, mine ? '🎲 Roll d20' : `Roll for ${p.playerName}`));
+      else if (mine || EW.me.host) row.append(h('button.btn.primary.roll-btn', { onclick: () => EW.api('api/roll', { hero: p.hero }) }, mine ? '🎲 Roll d20' : `Roll for ${p.playerName}`));
       else row.append(h('span.hint', `waiting for ${p.playerName}… (${p.secondsLeft}s)`));
       rp.append(row);
     }
@@ -236,7 +236,7 @@
       const vs = h('span.voters');
       for (const v of c.votes) { const p = S.players.find(x => x.id === v); if (p) vs.append(h('i', { style: { background: p.color }, title: p.name })); }
       tags.append(vs);
-      const btn = h('button.choice' + (voted ? '.voted' : '') + (c.battle ? '.battle-choice' : ''), { disabled: busy || !!c.disabled || (!myHero && !EW.me.host) || (c.spell && !c.caster), title: c.disabled || '', onclick: () => EW.api('/api/vote', { choice: c.id }),
+      const btn = h('button.choice' + (voted ? '.voted' : '') + (c.battle ? '.battle-choice' : ''), { disabled: busy || !!c.disabled || (!myHero && !EW.me.host) || (c.spell && !c.caster), title: c.disabled || '', onclick: () => EW.api('api/vote', { choice: c.id }),
         onmouseenter: c.battle ? () => EW.tale.lean(true) : null, onfocus: c.battle ? () => EW.tale.lean(true) : null,
         onmouseleave: c.battle ? () => { if (!S.scene.choices.some(x => x.battle && x.votes.length)) EW.tale.lean(false); } : null },
         h('span.ic', c.icon || '•'), h('span.lbl', c.label, c.hint ? h('span.sub', c.hint) : c.disabled ? h('span.sub', c.disabled) : null), tags);
@@ -246,7 +246,7 @@
     const votes = S.scene.choices.reduce((n, c) => n + c.votes.length, 0);
     if (votes && S.voteSeconds) {
       vi.append(`The table is deciding… ${S.voteSeconds}s `);
-      if (EW.me.host) vi.append(h('button.btn.small', { onclick: () => EW.api('/api/force', {}) }, 'Decide now'));
+      if (EW.me.host) vi.append(h('button.btn.small', { onclick: () => EW.api('api/force', {}) }, 'Decide now'));
     } else if (!myHero) vi.append('Create a hero in the lobby to take part in decisions.');
   }
 
@@ -259,7 +259,7 @@
     const who = mine[0];
     const grid = h('div.shop-grid');
     for (const it of S.stock) grid.append(h('div.ware', h('b', it.name), h('span.price', it.value + ' gp'), h('p', it.desc),
-      h('button.btn.small', { disabled: who.gold < it.value, onclick: () => EW.api('/api/shop', { hero: who.id, item: it.id }) }, `Buy for ${who.name.split(' ')[0]}`)));
+      h('button.btn.small', { disabled: who.gold < it.value, onclick: () => EW.api('api/shop', { hero: who.id, item: it.id }) }, `Buy for ${who.name.split(' ')[0]}`)));
     sh.append(h('h3', `Tobin's wares — ${who.name.split(' ')[0]} has ${who.gold} gp`), grid);
   }
 
@@ -302,7 +302,7 @@
   };
   async function sendTalk(text, kind) {
     if (!text.trim()) return;
-    const r = await EW.api('/api/say', { hero: $('talkHero').value, text, kind });
+    const r = await EW.api('api/say', { hero: $('talkHero').value, text, kind });
     if (r.ok) $('talkInput').value = '';
   }
   $('talk').onsubmit = e => { e.preventDefault(); sendTalk($('talkInput').value, talkKind); };
@@ -355,8 +355,8 @@
     e.preventDefault();
     const t = $('chatInput').value.trim();
     if (!t) return;
-    if ($('chatMode').value === 'say' && !t.startsWith('/')) { const mine = myHeroes(); EW.api('/api/say', { hero: mine.length ? mine[0].id : '', text: t, kind: 'say' }); }
-    else EW.api('/api/chat', { text: t });
+    if ($('chatMode').value === 'say' && !t.startsWith('/')) { const mine = myHeroes(); EW.api('api/say', { hero: mine.length ? mine[0].id : '', text: t, kind: 'say' }); }
+    else EW.api('api/chat', { text: t });
     $('chatInput').value = '';
   };
 
@@ -446,8 +446,8 @@
     draw();
     const switcher = h('div.row.wrap', { style: { marginTop: '10px' } }, S.heroes.filter(x => x.id !== hero.id).map(x => h('button.btn.small', { onclick: () => openSheet(x.id) }, x.name.split(' ')[0])));
     EW.modal(h('div.sheet', h('div', pc, h('h2', { style: { marginTop: '10px' } }, hero.name), h('div.hint', `Level ${hero.level} ${hero.speciesName}${hero.lineageName && hero.lineageName !== hero.speciesName ? ' (' + hero.lineageName + ')' : ''} ${hero.className}${hero.subclass ? ' — ' + hero.subclass : ''}`), h('div.hint', `${hero.backgroundName} · ${hero.pronouns}`),
-      h('div.row.wrap', { style: { marginTop: '10px' } }, h('a.btn.small', { href: `/api/hero/export?id=${hero.id}&pid=${EW.me.id}`, download: '' }, 'Export hero file'),
-        !hero.npc && hero.player !== EW.me.id && !(S.players.find(p => p.id === hero.player) || {}).online ? h('button.btn.small.primary', { onclick: async () => { const r = await EW.api('/api/hero/claim', { hero: hero.id }); if (r.ok) { EW.toast(`You now play ${hero.name}`, true); EW.closeModal(); } } }, 'Play this hero') : null), switcher),
+      h('div.row.wrap', { style: { marginTop: '10px' } }, h('a.btn.small', { href: `api/hero/export?id=${hero.id}&pid=${EW.me.id}`, download: '' }, 'Export hero file'),
+        !hero.npc && hero.player !== EW.me.id && !(S.players.find(p => p.id === hero.player) || {}).online ? h('button.btn.small.primary', { onclick: async () => { const r = await EW.api('api/hero/claim', { hero: hero.id }); if (r.ok) { EW.toast(`You now play ${hero.name}`, true); EW.closeModal(); } } }, 'Play this hero') : null), switcher),
       h('div', tabs, body)));
   }
 
@@ -462,12 +462,12 @@
       out.push(h('p.hint', cls === 'wizard' ? 'Choose from your spellbook.' : 'Choose from your class list.'));
       const chosen = new Set(hero.prepared);
       const pick = h('div.spell-pick');
-      EW.api('/api/rules', undefined, { quiet: true }).then(R => {
+      EW.api('api/rules', undefined, { quiet: true }).then(R => {
         const maxLv = (hero.slotsMax || []).length;
         const pool = R.spells.filter(s => s.level >= 1 && s.level <= maxLv && s.lists.includes(cls) && (cls !== 'wizard' || hero.spellbook.includes(s.id)) && s.id !== 'divine_smite');
         for (const s of pool) pick.append(h('label', h('input', { type: 'checkbox', checked: chosen.has(s.id), onchange: e => { e.target.checked ? chosen.add(s.id) : chosen.delete(s.id); } }), h('span', h('b', s.name + ` (L${s.level})`), h('small', s.desc))));
       });
-      out.push(pick, h('button.btn.primary', { style: { marginTop: '8px' }, onclick: async () => { const r = await EW.api('/api/hero/prepare', { hero: hero.id, spells: [...chosen] }); if (r.ok) EW.toast('Spells prepared', true); } }, 'Prepare these spells'));
+      out.push(pick, h('button.btn.primary', { style: { marginTop: '8px' }, onclick: async () => { const r = await EW.api('api/hero/prepare', { hero: hero.id, spells: [...chosen] }); if (r.ok) EW.toast('Spells prepared', true); } }, 'Prepare these spells'));
     }
     return out;
   }
@@ -480,9 +480,9 @@
       const row = h('div.inv-item', h('div', h('b', `${it.name}${n > 1 ? ' ×' + n : ''}`), h('div.hint', it.desc)));
       if (mine) {
         const acts = h('div.row');
-        if (it.attunable) acts.append(h('button.btn.small' + (hero.attuned.includes(it.id) ? '.primary' : ''), { onclick: async () => { await EW.api('/api/hero/attune', { hero: hero.id, item: it.id }); setTimeout(() => openSheet(hero.id), 150); } }, hero.attuned.includes(it.id) ? 'Attuned ✓' : 'Attune'));
+        if (it.attunable) acts.append(h('button.btn.small' + (hero.attuned.includes(it.id) ? '.primary' : ''), { onclick: async () => { await EW.api('api/hero/attune', { hero: hero.id, item: it.id }); setTimeout(() => openSheet(hero.id), 150); } }, hero.attuned.includes(it.id) ? 'Attuned ✓' : 'Attune'));
         const others = S.heroes.filter(x => x.id !== hero.id);
-        if (others.length) { const sel = h('select', { onchange: async e => { if (e.target.value) { await EW.api('/api/hero/give', { from: hero.id, to: e.target.value, item: it.id }); setTimeout(() => openSheet(hero.id), 150); } } }, h('option', { value: '' }, 'Give to…'), others.map(o => h('option', { value: o.id }, o.name))); acts.append(sel); }
+        if (others.length) { const sel = h('select', { onchange: async e => { if (e.target.value) { await EW.api('api/hero/give', { from: hero.id, to: e.target.value, item: it.id }); setTimeout(() => openSheet(hero.id), 150); } } }, h('option', { value: '' }, 'Give to…'), others.map(o => h('option', { value: o.id }, o.name))); acts.append(sel); }
         row.append(acts);
       }
       out.push(row);
@@ -498,27 +498,33 @@
   $('modalClose').onclick = () => EW.closeModal();
   $('modal').addEventListener('click', e => { if (e.target.id === 'modal') EW.closeModal(); });
   const db = $('diceButtons');
-  for (const d of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100', '2d20kh1']) db.append(h('button.btn', { onclick: () => EW.api('/api/dice', { expr: d.startsWith('d') ? '1' + d : d }) }, d === '2d20kh1' ? 'Adv.' : d));
-  $('diceForm').onsubmit = e => { e.preventDefault(); EW.api('/api/dice', { expr: $('diceExpr').value }); };
+  for (const d of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100', '2d20kh1']) db.append(h('button.btn', { onclick: () => EW.api('api/dice', { expr: d.startsWith('d') ? '1' + d : d }) }, d === '2d20kh1' ? 'Adv.' : d));
+  $('diceForm').onsubmit = e => { e.preventDefault(); EW.api('api/dice', { expr: $('diceExpr').value }); };
 
   $('btnMenu').onclick = async () => {
-    const info = await EW.api('/api/info');
-    const saves = (await EW.api('/api/saves')).saves || [];
+    const info = await EW.api('api/info');
+    const saves = (await EW.api('api/saves')).saves || [];
     const meP = S && S.players.find(p => p.id === EW.me.id);
     const box = h('div', h('h2', 'Table menu'),
-      h('h3', 'Invite friends'), h('p.hint', 'Anyone on your network can join from a browser — Windows, Mac, phone or tablet:'),
-      ...info.urls.slice(1).map(u => h('div.invite', u)), info.urls.length < 2 ? h('p.hint', 'No network address found — friends can join over the internet with a tunnel (see README).') : null,
+      h('h3', 'Invite friends'),
+      ...(/^(localhost|127\.|\[::1\])/.test(location.hostname)
+        ? [h('p.hint', 'Anyone on your network can join from a browser — Windows, Mac, phone or tablet:'),
+           ...info.urls.slice(1).map(u => h('div.invite', u)), info.urls.length < 2 ? h('p.hint', 'No network address found — friends can join over the internet with a tunnel (see README).') : null]
+        : [h('p.hint', 'Share this page — anyone who can open it can join the table:'), h('div.invite', EW.pageUrl())]),
+      !EW.me.host ? h('details', h('summary.hint', 'I have the host key'),
+        h('div.row.gap', { style: { marginTop: '6px' } }, h('input#hostKeyInput', { type: 'password', placeholder: 'Host key', autocomplete: 'off' }),
+          h('button.btn.small', { onclick: async () => { try { localStorage.setItem('ew.hostKey', $('hostKeyInput').value); } catch {} const r = await EW.api('api/join', { id: EW.me.id, name: EW.me.name, hostKey: $('hostKeyInput').value }); if (r.ok && r.host) { EW.me.host = true; EW.toast('You are now the host.', true); EW.closeModal(); } else EW.toast('That key didn\'t work.'); } }, 'Become host'))) : null,
       h('h3', 'Music'),
       h('div.menu-list',
         h('label.row', h('input', { type: 'checkbox', checked: EW.audio.on, onchange: e => EW.audio.toggle(e.target.checked) }), 'Music, sound effects & living soundscapes'),
         h('div.two', h('label.field', h('span', 'Music'), h('input', { type: 'range', min: '0', max: '0.6', step: '0.02', value: EW.audio.vol.music, oninput: e => EW.audio.setVolume('music', parseFloat(e.target.value)) })),
           h('label.field', h('span', 'Ambience (crowds, fire, rain…)'), h('input', { type: 'range', min: '0', max: '1.4', step: '0.05', value: EW.audio.vol.amb, oninput: e => EW.audio.setVolume('amb', parseFloat(e.target.value)) }))),
-        h('label.row', h('input', { type: 'checkbox', checked: meP && meP.autoplay, onchange: e => EW.api('/api/autoplay', { on: e.target.checked }) }), 'Auto-play my hero in battle (for when you step away)')),
+        h('label.row', h('input', { type: 'checkbox', checked: meP && meP.autoplay, onchange: e => EW.api('api/autoplay', { on: e.target.checked }) }), 'Auto-play my hero in battle (for when you step away)')),
       h('h3', 'Voices'), EW.voice.panel(),
       h('h3', 'The tale'),
       h('div.row.wrap.gap', h('button.btn', { onclick: () => { showLobby = true; EW.closeModal(); applyState(S); } }, 'Open the lobby (heroes & tales)')));
     if (EW.me.host) {
-      const ai = await EW.api('/api/ai', undefined, { quiet: true });
+      const ai = await EW.api('api/ai', undefined, { quiet: true });
       const prov = h('select', ['rules', 'ollama', 'openai', 'anthropic'].map(p => h('option', { value: p, selected: ai.provider === p }, { rules: 'Built-in improv rules (no setup)', ollama: 'Local AI with Ollama', openai: 'OpenAI-compatible server (LM Studio, llama.cpp…)', anthropic: 'Claude (Anthropic API key)' }[p])));
       const url = h('input', { value: ai.url || '', placeholder: 'default: http://localhost:11434 for Ollama' });
       const model = h('input', { value: ai.model || '', placeholder: 'e.g. gemma3, llama3.2 (blank = first installed)' });
@@ -526,11 +532,11 @@
       const out = h('p.hint');
       box.append(h('h3', 'AI Dungeon Master (host)'), h('p.hint', 'Players can speak in character; the DM answers in the NPC\'s voice and may call for checks. It never changes the plot.'),
         h('div.menu-list', h('label.field', h('span', 'Who plays the DM'), prov), h('div.two', h('label.field', h('span', 'Server URL'), url), h('label.field', h('span', 'Model'), model)), h('label.field', h('span', 'API key'), key),
-          h('div.row.gap', h('button.btn.small.primary', { onclick: async () => { const r = await EW.api('/api/ai/config', { provider: prov.value, url: url.value, model: model.value, apiKey: key.value }); if (r.ok) { out.textContent = 'Saved — ' + r.dm.label; } } }, 'Save'),
-            h('button.btn.small', { onclick: async () => { out.textContent = 'Testing…'; const r = await EW.api('/api/ai/test', {}); out.textContent = r.message || r.error; } }, 'Test connection')), out));
+          h('div.row.gap', h('button.btn.small.primary', { onclick: async () => { const r = await EW.api('api/ai/config', { provider: prov.value, url: url.value, model: model.value, apiKey: key.value }); if (r.ok) { out.textContent = 'Saved — ' + r.dm.label; } } }, 'Save'),
+            h('button.btn.small', { onclick: async () => { out.textContent = 'Testing…'; const r = await EW.api('api/ai/test', {}); out.textContent = r.message || r.error; } }, 'Test connection')), out));
       const name = h('input', { placeholder: 'save name', value: 'my-game' });
-      box.append(h('h3', 'Saves (host)'), h('div.row.wrap.gap', name, h('button.btn', { onclick: async () => { const r = await EW.api('/api/save', { name: name.value }); if (r.ok) EW.toast('Saved', true); } }, 'Save game')),
-        h('div.row.wrap.gap', { style: { marginTop: '8px' } }, saves.map(s => h('button.btn.small', { onclick: async () => { if (confirm(`Load “${s}”? Unsaved progress will be lost.`)) { const r = await EW.api('/api/load', { name: s }); if (r.ok) { showLobby = false; lastSceneKey = ''; EW.closeModal(); } } } }, 'Load ' + s))));
+      box.append(h('h3', 'Saves (host)'), h('div.row.wrap.gap', name, h('button.btn', { onclick: async () => { const r = await EW.api('api/save', { name: name.value }); if (r.ok) EW.toast('Saved', true); } }, 'Save game')),
+        h('div.row.wrap.gap', { style: { marginTop: '8px' } }, saves.map(s => h('button.btn.small', { onclick: async () => { if (confirm(`Load “${s}”? Unsaved progress will be lost.`)) { const r = await EW.api('api/load', { name: s }); if (r.ok) { showLobby = false; lastSceneKey = ''; EW.closeModal(); } } } }, 'Load ' + s))));
     }
     box.append(h('p.hint', { style: { marginTop: '16px' } }, `Emberwild v${info.version} · Keys: D dice tray · C character sheet · 1–9 pick a choice · Esc cancel targeting`));
     EW.modal(box);

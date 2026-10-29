@@ -113,7 +113,7 @@
     const done = () => { if (finished) return; finished = true; emit('end', item); playing = null; setTimeout(pump, item.role.key === 'narrator' ? 120 : 220); };
     if (V.useNeural()) {
       const voice = castNeural(item.role);
-      const url = `/api/tts?voice=${encodeURIComponent(voice || '')}&rate=${(V.cfg.rate * (item.role.rate || 1)).toFixed(2)}&text=${encodeURIComponent(item.text)}`;
+      const url = `api/tts?voice=${encodeURIComponent(voice || '')}&rate=${(V.cfg.rate * (item.role.rate || 1)).toFixed(2)}&text=${encodeURIComponent(item.text)}`;
       audio = new Audio(url);
       audio.volume = V.cfg.volume;
       // pitch for monsters and small folk via playback rate (Piper has no pitch control)

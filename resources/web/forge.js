@@ -27,7 +27,7 @@
     if (!draft) load();
     const box = h('div');
     EW.modal(box);
-    const r = await EW.api('/api/rules', undefined, { quiet: true });
+    const r = await EW.api('api/rules', undefined, { quiet: true });
     monsters = (r.monsters || []).map(m => m.id);
     render(box);
   }
@@ -45,14 +45,14 @@
 
   // ---------------------------------------------------------------- library
   async function library(area, box) {
-    const r = await EW.api('/api/campaigns');
+    const r = await EW.api('api/campaigns');
     for (const c of r.campaigns) {
       area.append(h('div.choice-edit',
         h('div.row', { style: { justifyContent: 'space-between' } }, h('b', c.title), h('span.hint', `by ${c.author} · ${c.source}`)),
         h('div.hint', `${c.scenes} scenes · ${c.battles} battles · ${c.checks} skill checks${c.pregens ? ' · ' + c.pregens + ' heroes' : ''}`),
         c.hooks.length ? h('div.hookline', 'Appears at: ' + c.hooks.map(x => `${x.anchor} (“${x.label}”)`).join(', ')) : null,
-        h('div.row', h('a.btn.small', { href: `/api/campaign?id=${c.id}&download=1&pid=${EW.me.id}`, download: c.id + '.json' }, 'Download JSON'),
-          !c.core ? h('button.btn.small', { onclick: async () => { const full = await (await fetch(`/api/campaign?id=${c.id}`)).json(); draft = full; draft.scenes = full.scenes; selScene = Object.keys(draft.scenes)[0]; save(); tab = 'build'; render(box); } }, 'Open in builder') : null)));
+        h('div.row', h('a.btn.small', { href: `api/campaign?id=${c.id}&download=1&pid=${EW.me.id}`, download: c.id + '.json' }, 'Download JSON'),
+          !c.core ? h('button.btn.small', { onclick: async () => { const full = await (await fetch(`api/campaign?id=${c.id}`)).json(); draft = full; draft.scenes = full.scenes; selScene = Object.keys(draft.scenes)[0]; save(); tab = 'build'; render(box); } }, 'Open in builder') : null)));
     }
     const errs = Object.entries(r.errors || {});
     if (errs.length) { area.append(h('h3', 'Files that failed to load')); for (const [f, p] of errs) area.append(h('div.problems', h('b', f), p.map(x => h('div.' + x.split(' ')[0], x)))); }
@@ -62,11 +62,11 @@
       for (const f of r.pending) {
         const out = h('div');
         area.append(h('div.choice-edit', h('b', f), h('div.row',
-          h('button.btn.small', { onclick: async () => { const s = await EW.api(`/api/campaign/pending?file=${encodeURIComponent(f)}`); out.innerHTML = ''; out.append(h('pre.code', s.source)); } }, 'Read the code'),
-          h('button.btn.small.primary', { onclick: async () => { const a = await EW.api('/api/campaign/approve', { file: f }); out.innerHTML = ''; out.append(problems(a.problems || [])); if (a.ok) { EW.toast(`“${a.title}” approved`, true); } } }, 'Approve & load'),
-          h('button.btn.small.danger', { onclick: async () => { await EW.api('/api/campaign/reject', { file: f }); render(box); } }, 'Reject')), out));
+          h('button.btn.small', { onclick: async () => { const s = await EW.api(`api/campaign/pending?file=${encodeURIComponent(f)}`); out.innerHTML = ''; out.append(h('pre.code', s.source)); } }, 'Read the code'),
+          h('button.btn.small.primary', { onclick: async () => { const a = await EW.api('api/campaign/approve', { file: f }); out.innerHTML = ''; out.append(problems(a.problems || [])); if (a.ok) { EW.toast(`“${a.title}” approved`, true); } } }, 'Approve & load'),
+          h('button.btn.small.danger', { onclick: async () => { await EW.api('api/campaign/reject', { file: f }); render(box); } }, 'Reject')), out));
       }
-      area.append(h('button.btn', { onclick: async () => { await EW.api('/api/campaign/reload', {}); EW.toast('Campaign folder reloaded', true); render(box); } }, 'Reload the campaigns folder'));
+      area.append(h('button.btn', { onclick: async () => { await EW.api('api/campaign/reload', {}); EW.toast('Campaign folder reloaded', true); render(box); } }, 'Reload the campaigns folder'));
     }
   }
 
@@ -103,8 +103,8 @@
     el.append(h('div.forge-grid', h('div', list), editor));
     const out = h('div');
     el.append(h('div.row.wrap.gap', { style: { marginTop: '12px' } },
-      h('button.btn', { onclick: async () => { draft.hooks[0].entry = draft.hooks[0].entry || draft.start; const r = await EW.api('/api/campaign/validate', draft); out.innerHTML = ''; out.append(problems(r.problems || [])); } }, 'Check for problems'),
-      h('button.btn.primary', { onclick: async () => { const r = await EW.api('/api/campaign/submit', draft); out.innerHTML = ''; out.append(problems(r.problems || [])); if (r.saved) EW.toast(`“${r.title}” is now part of the realm`, true); } }, 'Publish to this realm'),
+      h('button.btn', { onclick: async () => { draft.hooks[0].entry = draft.hooks[0].entry || draft.start; const r = await EW.api('api/campaign/validate', draft); out.innerHTML = ''; out.append(problems(r.problems || [])); } }, 'Check for problems'),
+      h('button.btn.primary', { onclick: async () => { const r = await EW.api('api/campaign/submit', draft); out.innerHTML = ''; out.append(problems(r.problems || [])); if (r.saved) EW.toast(`“${r.title}” is now part of the realm`, true); } }, 'Publish to this realm'),
       h('button.btn.ghost', { onclick: () => { const blob = new Blob([JSON.stringify(draft, null, 2)], { type: 'application/json' }); const a = h('a', { href: URL.createObjectURL(blob), download: draft.id + '.json' }); document.body.append(a); a.click(); a.remove(); } }, 'Download JSON'),
       h('button.btn.ghost.danger', { onclick: () => { if (confirm('Start a blank tale? Your current draft will be lost.')) { draft = blank(); selScene = 'start'; save(); render(box); } } }, 'New blank tale')), out);
     refresh();
@@ -170,13 +170,13 @@
         const text = await f.text();
         out.innerHTML = '';
         let r;
-        if (f.name.endsWith('.java')) r = await EW.api('/api/campaign/submit-java?name=' + encodeURIComponent(f.name), text, { raw: true });
-        else { let obj; try { obj = JSON.parse(text); } catch (err) { out.append(h('div.err', 'That file is not valid JSON: ' + err.message)); return; } r = await EW.api('/api/campaign/submit', obj); }
+        if (f.name.endsWith('.java')) r = await EW.api('api/campaign/submit-java?name=' + encodeURIComponent(f.name), text, { raw: true });
+        else { let obj; try { obj = JSON.parse(text); } catch (err) { out.append(h('div.err', 'That file is not valid JSON: ' + err.message)); return; } r = await EW.api('api/campaign/submit', obj); }
         out.append(problems(r.problems || []));
         if (r.saved) EW.toast(`“${r.title}” is now part of the realm`, true);
       } })), out,
       h('h3', 'Start from an example'),
-      h('div.row.wrap.gap', h('a.btn', { href: '/api/template/json', download: 'the_lost_lantern.json' }, 'Example JSON tale'), h('a.btn', { href: '/api/template/java', download: 'TheSunkenBell.java' }, 'Example Java tale')),
+      h('div.row.wrap.gap', h('a.btn', { href: 'api/template/json', download: 'the_lost_lantern.json' }, 'Example JSON tale'), h('a.btn', { href: 'api/template/java', download: 'TheSunkenBell.java' }, 'Example Java tale')),
       h('p.hint', 'Java tales implement emberwild.story.CampaignScript and use the same fluent DSL as the core campaign. Validate locally with: java -jar emberwild.jar --validate MyTale.java'));
   }
 })();

@@ -195,7 +195,7 @@
       EW.h('span.' + (ti.move > 0 ? 'on' : 'off'), `Move ${ti.move} ft`));
   }
 
-  function act(type, extra) { return EW.api('/api/act', Object.assign({ type }, extra || {})); }
+  function act(type, extra) { return EW.api('api/act', Object.assign({ type }, extra || {})); }
 
   function renderBar() {
     bar.innerHTML = '';

@@ -53,6 +53,7 @@ public final class Game {
     public static final class Player {
         public String id, name, color = "#e0b050";
         public boolean host;
+        public transient boolean trusted;
         public int connections;
         public long lastSeen = System.currentTimeMillis();
         public boolean autoplay;
@@ -173,7 +174,13 @@ public final class Game {
     }
 
     // ===================================================================================== players & heroes
-    public synchronized Player join(String id, String name, boolean local) {
+    public synchronized Player join(String id, String name, boolean local) { return join(id, name, local, true); }
+
+    /**
+     * @param trusted     the browser is on this machine, or presented the host key: becomes (and stays) a host
+     * @param firstIsHost with no host key configured, the first person at the table becomes host
+     */
+    public synchronized Player join(String id, String name, boolean trusted, boolean firstIsHost) {
         Player p = id == null ? null : players.get(id);
         if (p == null) {
             p = new Player();
@@ -185,7 +192,8 @@ public final class Game {
         if (name != null && !name.isBlank()) p.name = name.trim().substring(0, Math.min(24, name.trim().length()));
         if (p.name == null) p.name = "Adventurer " + players.size();
         boolean anyHost = players.values().stream().anyMatch(x -> x.host);
-        if (local || !anyHost) p.host = true;
+        if (trusted) { p.host = true; p.trusted = true; }
+        else if (!anyHost && firstIsHost) p.host = true;
         p.lastSeen = System.currentTimeMillis();
         log("👋 " + p.name + " pulls up a chair at the table.", "join");
         changed();
@@ -201,6 +209,7 @@ public final class Game {
     }
 
     public synchronized boolean isHost(String pid) { Player p = players.get(pid); return p != null && p.host; }
+    public synchronized boolean isTrusted(String pid) { Player p = players.get(pid); return p != null && p.trusted; }
 
     public synchronized Map<String, Object> createHero(String pid, Map<String, Object> spec) {
         Player p = players.get(pid);

@@ -13,7 +13,7 @@
   EW.builder = { open };
 
   async function open(prefill) {
-    if (!R) R = await EW.api('/api/rules');
+    if (!R) R = await EW.api('api/rules');
     st = Object.assign({
       name: '', pronouns: 'she/her', class: '', background: '', species: '', lineage: '',
       method: 'pointbuy', scores: { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 }, std: {}, rolled: null,
@@ -266,7 +266,7 @@ c.pregen(Hero.fromSpec(Json.obj(
   }
 
   async function create() {
-    const r = await EW.api('/api/hero/create', { spec: spec() });
+    const r = await EW.api('api/hero/create', { spec: spec() });
     if (r.ok) { EW.toast(`${st.name} joins the party!`, true); EW.closeModal(); if (r.warnings && r.warnings.length) EW.toast('Adjusted: ' + r.warnings.join('; ')); }
     else if (r.errors) document.getElementById('berr').textContent = r.errors.join(' ');
   }

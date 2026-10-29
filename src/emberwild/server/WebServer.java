@@ -25,12 +25,16 @@ public final class WebServer {
     private final HttpServer http;
     public final int port;
     public Tts tts;
+    /** Optional secret: anyone who opens the page with ?host=KEY becomes a trusted host (for hosting behind a website). */
+    public String hostKey;
 
-    public WebServer(Game game, CampaignRegistry registry, int port) throws IOException {
+    public WebServer(Game game, CampaignRegistry registry, int port) throws IOException { this(game, registry, port, "0.0.0.0"); }
+
+    public WebServer(Game game, CampaignRegistry registry, int port, String bind) throws IOException {
         this.game = game;
         this.registry = registry;
         this.port = port;
-        this.http = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 64);
+        this.http = HttpServer.create(new InetSocketAddress(bind, port), 64);
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.createContext("/", this::handle);
     }
@@ -41,14 +45,14 @@ public final class WebServer {
     // ------------------------------------------------------------------------------------------ routing
     private void handle(HttpExchange ex) throws IOException {
         try {
-            String path = ex.getRequestURI().getPath();
+            String path = normalize(ex.getRequestURI().getPath());
             String method = ex.getRequestMethod();
             if (method.equals("OPTIONS")) { send(ex, 204, "text/plain", new byte[0]); return; }
-            if (path.equals("/") || path.equals("/index.html")) { resource(ex, "/web/index.html"); return; }
             if (path.startsWith("/static/")) { resource(ex, "/web/" + path.substring(8)); return; }
             if (path.equals("/favicon.ico")) { resource(ex, "/web/favicon.svg"); return; }
             if (path.equals("/api/events")) { events(ex); return; }
-            if (!path.startsWith("/api/")) { text(ex, 404, "Not found"); return; }
+            // anything that isn't the API is the game page, so Emberwild works at / or under any sub-path (/emberwild/...)
+            if (!path.startsWith("/api/")) { resource(ex, "/web/index.html"); return; }
             String pid = pid(ex);
             Map<String, Object> body = method.equals("POST") && !path.equals("/api/campaign/submit-java") ? readJson(ex) : Map.of();
             Object res = route(ex, path, pid, body);
@@ -71,7 +75,7 @@ public final class WebServer {
             case "/api/say": return err(game.say(pid, Json.str(b, "hero", ""), Json.str(b, "text", ""), Json.str(b, "kind", "say")));
             case "/api/ai": { if (!game.isHost(pid)) return deny(); return game.dm.describe(); }
             case "/api/ai/config": {
-                if (!game.isHost(pid) || !local) return Json.obj("ok", false, "error", "Only the host, on the machine running Emberwild, can configure the AI Dungeon Master.");
+                if (!game.isHost(pid) || !(local || game.isTrusted(pid))) return Json.obj("ok", false, "error", "Only the host, on the machine running Emberwild (or with the host key), can configure the AI Dungeon Master.");
                 game.dm.configure(Json.str(b, "provider", "rules"), Json.str(b, "url", ""), Json.str(b, "model", ""), Json.str(b, "apiKey", ""));
                 game.changed();
                 return Json.obj("ok", true, "dm", game.dm.describe());
@@ -86,7 +90,8 @@ public final class WebServer {
                 return null;
             }
             case "/api/join": {
-                Game.Player p = game.join(Json.str(b, "id", null), Json.str(b, "name", null), local);
+                boolean keyOk = hostKey != null && !hostKey.isBlank() && hostKey.equals(Json.str(b, "hostKey", ""));
+                Game.Player p = game.join(Json.str(b, "id", null), Json.str(b, "name", null), local || keyOk, hostKey == null || hostKey.isBlank());
                 return Json.obj("ok", true, "id", p.id, "name", p.name, "host", p.host, "color", p.color);
             }
             case "/api/rules": return rules();
@@ -150,7 +155,7 @@ public final class WebServer {
                 return Json.obj("pending", registry.pending());
             }
             case "/api/campaign/approve": {
-                if (!game.isHost(pid) || !local) return Json.obj("ok", false, "problems", List.of("ERROR Only the host, on the machine running Emberwild, can approve Java campaigns (they run as code)."));
+                if (!game.isHost(pid) || !(local || game.isTrusted(pid))) return Json.obj("ok", false, "problems", List.of("ERROR Only the host, on the machine running Emberwild (or with the host key), can approve Java campaigns (they run as code)."));
                 Map<String, Object> r = registry.approve(Json.str(b, "file", ""));
                 if (Json.bool(r, "ok", false)) { game.log("📜 A new Java tale joins the realm: \"" + Json.str(r, "title", "") + "\"", "title"); game.changed(); }
                 return r;
@@ -225,9 +230,24 @@ public final class WebServer {
         return query(ex).getOrDefault("pid", "");
     }
 
+    /** True only for a browser on this very machine — never for traffic relayed by a reverse proxy, even a local one. */
     private static boolean isLocal(HttpExchange ex) {
         InetAddress a = ex.getRemoteAddress().getAddress();
-        return a.isLoopbackAddress();
+        if (!a.isLoopbackAddress()) return false;
+        var h = ex.getRequestHeaders();
+        return h.getFirst("X-Forwarded-For") == null && h.getFirst("Forwarded") == null && h.getFirst("X-Real-IP") == null
+                && h.getFirst("X-Forwarded-Host") == null && h.getFirst("CF-Connecting-IP") == null;
+    }
+
+    /** Strip any prefix a reverse proxy left in front of our routes (e.g. /emberwild/api/state → /api/state). */
+    static String normalize(String p) {
+        if (p == null || p.isEmpty()) return "/";
+        int i = p.indexOf("/api/");
+        if (i > 0) return p.substring(i);
+        i = p.indexOf("/static/");
+        if (i > 0) return p.substring(i);
+        if (p.endsWith("/favicon.ico")) return "/favicon.ico";
+        return p;
     }
 
     static Map<String, String> query(HttpExchange ex) {

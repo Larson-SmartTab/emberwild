@@ -24,11 +24,12 @@ import java.util.*;
  * </pre>
  */
 public final class Main {
-    public static final String VERSION = "2.2.0";
-    static final List<String> BUILTIN = List.of("emberwild.story.DrownedCrown", "emberwild.story.FrostfellPact", "emberwild.story.WyrmfireDeep");
+    public static final String VERSION = "2.3.0";
+    static final List<String> BUILTIN = List.of("emberwild.story.DrownedCrown", "emberwild.story.FrostfellPact", "emberwild.story.WyrmfireDeep", "emberwild.story.TheGem");
 
     public static void main(String[] args) throws Exception {
-        int port = 7777;
+        int port = System.getenv("PORT") != null && System.getenv("PORT").matches("\\d+") ? Integer.parseInt(System.getenv("PORT")) : 7777;
+        String bind = "0.0.0.0", hostKey = System.getenv("EMBERWILD_HOST_KEY");
         boolean browser = true;
         int selftest = 0;
         String selftestCampaign = "emberwild";
@@ -39,6 +40,8 @@ public final class Main {
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--port" -> port = Integer.parseInt(args[++i]);
+                case "--bind" -> bind = args[++i];
+                case "--host-key" -> hostKey = args[++i];
                 case "--no-browser", "--headless" -> browser = false;
                 case "--selftest" -> {
                     selftest = i + 1 < args.length && args[i + 1].matches("\\d+") ? Integer.parseInt(args[++i]) : 3;
@@ -94,12 +97,13 @@ public final class Main {
         Game game = new Game(registry, saves);
         WebServer server;
         try {
-            server = new WebServer(game, registry, port);
+            server = new WebServer(game, registry, port, bind);
         } catch (java.net.BindException e) {
             System.err.println("\nPort " + port + " is already in use. Is Emberwild already running? Try: --port " + (port + 1));
             return;
         }
         server.tts = new emberwild.server.Tts(home, piper, voices);
+        server.hostKey = hostKey;
         if (aiProvider != null) game.dm.configure(aiProvider, aiUrl, aiModel, null);
         server.start();
         System.out.println();
@@ -113,6 +117,10 @@ public final class Main {
         System.out.println("                     tailscale / ngrok http " + port + " / cloudflared tunnel --url http://localhost:" + port);
         System.out.println("  Dungeon Master:    " + game.dm.describe().get("label") + "   (change in the menu, or --ai ollama|openai|anthropic)");
         System.out.println("  Neural voices:     " + (server.tts.available() ? "Piper with " + server.tts.voices().size() + " voice(s)" : "browser voices (add Piper for studio-quality voices - see README)"));
+        System.out.println("  Host key:          " + (hostKey != null && !hostKey.isBlank()
+                ? "set - open the page with ?host=<key> to become host (remote hosting / reverse proxy)"
+                : "not set - the first player to join becomes host (set --host-key when hosting behind a website)"));
+        if (!bind.equals("0.0.0.0")) System.out.println("  Listening on:      " + bind + ":" + port);
         System.out.println("  Campaigns folder:  " + campaigns);
         System.out.println("  Saves folder:      " + saves);
         System.out.println("  Press Ctrl+C to stop.\n");
@@ -124,7 +132,10 @@ public final class Main {
     static void usage() {
         System.out.println("""
                 Emberwild %s — multiplayer D&D campaign engine
-                  --port N          listen on port N (default 7777)
+                  --port N          listen on port N (default 7777, or $PORT)
+                  --bind ADDRESS    listen only on this address (e.g. 127.0.0.1 behind a reverse proxy)
+                  --host-key KEY    secret that makes a browser the host when it opens ...?host=KEY
+                                    (or set EMBERWILD_HOST_KEY); use it when hosting behind a website
                   --no-browser      don't open a browser window
                   --home DIR        where campaigns/ and saves/ live (default: current folder)
                   --validate FILE   validate a campaign .json or .java and exit
@@ -167,7 +178,7 @@ public final class Main {
             Files.createDirectories(dir);
             Path starters = dir.resolve("starters");
             Files.createDirectories(starters);
-            for (String f : List.of("MyDrownedCrown.java", "MyFrostfellPact.java", "MyWyrmfireDeep.java")) {
+            for (String f : List.of("MyDrownedCrown.java", "MyFrostfellPact.java", "MyWyrmfireDeep.java", "MyTheGem.java")) {
                 try (InputStream in = Main.class.getResourceAsStream("/templates/starters/" + f)) {
                     if (in != null && !Files.exists(starters.resolve(f))) Files.copy(in, starters.resolve(f));
                 }

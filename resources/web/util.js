@@ -2,6 +2,16 @@
 const EW = window.EW = {};
 
 EW.me = { id: localStorage.getItem('ew.pid') || '', name: localStorage.getItem('ew.name') || '', host: false };
+// ?host=KEY in the address makes this browser the host on a server started with --host-key (then it's hidden again)
+(function () {
+  try {
+    const u = new URL(location.href), k = u.searchParams.get('host');
+    if (k) { localStorage.setItem('ew.hostKey', k); u.searchParams.delete('host'); history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); }
+  } catch {}
+})();
+EW.hostKey = () => { try { return localStorage.getItem('ew.hostKey') || ''; } catch { return ''; } };
+/** The address other players should open: this page, unless we're on localhost. */
+EW.pageUrl = () => location.origin + location.pathname;
 
 EW.api = async function (path, body, opts = {}) {
   const init = { method: body === undefined ? 'GET' : 'POST', headers: { 'X-Player': EW.me.id } };

@@ -7,6 +7,7 @@ or drop the file into the server's `campaigns/` folder and restart.
 |---|---|
 | `TheGem.json` | **The Gem, a story by Joel Hill** — recommended. Data only, so it goes live immediately (no approval) and works on any Emberwild 2.x server. |
 | `AnotherMainStation.json` | **Another Main Station** — the SmartTab one-shot (Payam, Chad the Toast rep, and ANOTHER main station). Data only; works on any Emberwild 2.x server. Source: `src/emberwild/story/AnotherMainStation.java`. |
+| `SmartTabMountainQuest.json` | **SmartTab Mountain Quest, a story by Vijay** — onboarding, the MagTek Mines, the ExpiTrans Bridge, the Toast King, and three endings (levels 1-4). Data only; works on any Emberwild 2.x server. Source: `src/emberwild/story/MountainQuest.java`. |
 | `TheGem.java` | The same tale as Java source. Java uploads wait for the host to approve them in the Forge. Compiles on Emberwild 2.1 and later. |
 
 Emberwild 2.3+ already includes The Gem, so don't upload it there (the id `the_gem` is taken).

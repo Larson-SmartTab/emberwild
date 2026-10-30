@@ -246,15 +246,15 @@ public final class MyTheGem implements CampaignScript {
         // the Secret Merchant's wares (Joel's jokes, with a little magic added)
         c.item("tg_bag_of_holding", "Bag of Holding (Support Edition)", "wondrous",
                 "Bigger on the inside. Contains SmartTab terminals, tablets, card readers, tangled cables and one support ticket from 2019. +1 to saving throws (nothing can surprise you after that ticket).",
-                Json.obj("bonus", Json.obj("save", 1), "value", 75));
+                Json.obj("bonus", Json.obj("save", 1), "attunable", true, "value", 75));
         c.item("tg_decanter_of_coffee", "Decanter of Boundless Coffee", "wondrous",
                 "Produces enough coffee to survive three operations meetings and an endless shift-change handoff. +2 to initiative.",
-                Json.obj("bonus", Json.obj("initiative", 2), "value", 50));
+                Json.obj("bonus", Json.obj("initiative", 2), "attunable", true, "value", 50));
     }
 
     static void weapon(Campaign c, String id, String name, int attack, int damage, String desc) {
         c.item(id, name + " (+" + attack + ")", "weapon", desc + " +" + attack + " to weapon attack rolls and +" + damage + " to weapon damage.",
-                Json.obj("bonus", Json.obj("attack", attack, "damage", damage), "value", 150 * (attack + damage)));
+                Json.obj("bonus", Json.obj("attack", attack, "damage", damage), "attunable", true, "value", 150 * (attack + damage)));
     }
 
     // =========================================================================================== prologue

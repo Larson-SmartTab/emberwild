@@ -68,6 +68,11 @@ public final class Hero implements Json.JsonAble {
             Items.Item it = Items.item(id);
             if (it != null) t += it.bonus.getOrDefault(key, 0);
         }
+        // items that don't need attunement work just by being carried (one copy counts)
+        for (String id : new java.util.LinkedHashSet<>(inventory)) {
+            Items.Item it = Items.item(id);
+            if (it != null && !it.attunable && !attuned.contains(id)) t += it.bonus.getOrDefault(key, 0);
+        }
         return t;
     }
 
